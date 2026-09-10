@@ -36,8 +36,8 @@ export const members: Member[] = [
   { id: "demo-brother", name: "김민수", relation: "아들", color: "green" },
   { id: "demo-aunt", name: "김정희", relation: "동생", color: "purple" },
 ];
-export const memberName = (id: string) =>
-  members.find((m) => m.id === id)?.name ?? "가상 보호자";
+export const memberName = (list: Member[], id: string) =>
+  list.find((m) => m.id === id)?.name ?? "알 수 없는 보호자";
 export function day(offset = 0) {
   const d = new Date();
   d.setDate(d.getDate() + offset);

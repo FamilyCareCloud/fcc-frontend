@@ -1,20 +1,14 @@
 import { useState, type FormEvent } from "react";
-import {
-  dateLabel,
-  day,
-  memberName,
-  members,
-  timeLabel,
-  type Schedule,
-} from "./data";
+import { dateLabel, day, memberName, timeLabel, type Schedule } from "./data";
 import { Badge, Empty, Icon, Modal } from "./ui";
 import type { Shared } from "./App";
 
 export function Schedules({
   schedules,
   setSchedules,
+  members,
   notify,
-}: Pick<Shared, "schedules" | "setSchedules" | "notify">) {
+}: Pick<Shared, "schedules" | "setSchedules" | "members" | "notify">) {
   const [filter, setFilter] = useState("전체");
   const [editing, setEditing] = useState<Schedule | "new" | null>(null);
   const [deleting, setDeleting] = useState<Schedule | null>(null);
@@ -79,7 +73,7 @@ export function Schedules({
               </div>
               <p>
                 {dateLabel(s.scheduledAt)} {timeLabel(s.scheduledAt)} · {s.kind}{" "}
-                · 담당 {memberName(s.caregiverId)}
+                · 담당 {memberName(members, s.caregiverId)}
               </p>
             </div>
             <label className="status-control">
@@ -131,6 +125,7 @@ export function Schedules({
       )}
       {editing && (
         <ScheduleEditor
+          members={members}
           initial={editing === "new" ? undefined : editing}
           onClose={() => setEditing(null)}
           onSave={(s) => {
@@ -175,10 +170,12 @@ export function Schedules({
   );
 }
 function ScheduleEditor({
+  members,
   initial,
   onClose,
   onSave,
 }: {
+  members: Shared["members"];
   initial?: Schedule;
   onClose: () => void;
   onSave: (s: Schedule) => void;

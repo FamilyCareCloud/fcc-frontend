@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { dateLabel, memberName, members, timeLabel } from "./data";
+import { dateLabel, memberName, timeLabel } from "./data";
 import { Badge, Icon, Modal } from "./ui";
 import type { Shared } from "./App";
 type Action = "elder" | "group" | "join" | "invite" | "leave" | "change" | null;
@@ -10,6 +10,7 @@ export function Family({
   setCurrent,
   next,
   setNext,
+  members,
   notify,
 }: Pick<
   Shared,
@@ -19,6 +20,7 @@ export function Family({
   | "setCurrent"
   | "next"
   | "setNext"
+  | "members"
   | "notify"
 >) {
   const [action, setAction] = useState<Action>(null);
@@ -201,7 +203,9 @@ export function Family({
                   <Icon name="users" />
                   보호자 교대
                 </h2>
-                <Badge tone="green">{memberName(current)} 담당 중</Badge>
+                <Badge tone="green">
+                  {memberName(members, current)} 담당 중
+                </Badge>
               </div>
               <label className="field">
                 다음 담당 보호자
@@ -234,7 +238,8 @@ export function Family({
                 history.map((h, i) => (
                   <div className="history-item" key={i}>
                     <span>
-                      {memberName(h.from)} → {memberName(h.to)}
+                      {memberName(members, h.from)} →{" "}
+                      {memberName(members, h.to)}
                     </span>
                     <span>
                       {dateLabel(h.at)} {timeLabel(h.at)}
@@ -318,7 +323,8 @@ export function Family({
               {action === "change" ? (
                 <>
                   <p className="inline-note">
-                    현재 담당자: {memberName(current)}. 돌봄 기록은 그대로
+                    현재 담당자: {memberName(members, current)}. 돌봄 기록은
+                    그대로
                     유지됩니다.
                   </p>
                   <label className="field">
