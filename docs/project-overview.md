@@ -28,8 +28,8 @@ AI는 저장된 기록을 정리하고 안내하는 역할을 맡습니다. 의�
 
 ## 저장소 구성
 
-- [프론트엔드](https://github.com/hy2oni/fcc-frontend)
-- [백엔드](https://github.com/hy2oni/fcc-backend)
-- [AI](https://github.com/hy2oni/fcc-ai)
+- [프론트엔드](https://github.com/FamilyCareCloud/fcc-frontend)
+- [백엔드](https://github.com/FamilyCareCloud/fcc-backend)
+- [AI](https://github.com/FamilyCareCloud/fcc-ai)
 
 분리 전 커밋 이력은 fcc-frontend 저장소에 보존되어 있습니다.

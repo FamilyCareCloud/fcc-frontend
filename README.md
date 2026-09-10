@@ -11,7 +11,7 @@
 코드를 보관할 폴더에서 터미널을 열고 순서대로 실행하세요. 프로토타입이 있는 `develop` 브랜치를 받습니다.
 
 ```sh
-git clone --branch develop https://github.com/hy2oni/fcc-frontend.git
+git clone --branch develop https://github.com/FamilyCareCloud/fcc-frontend.git
 cd fcc-frontend
 npm ci
 npm run dev
@@ -94,9 +94,9 @@ npm run build
 
 ## 저장소와 배포
 
-- 프론트: https://github.com/hy2oni/fcc-frontend
-- 백엔드: https://github.com/hy2oni/fcc-backend
-- AI: https://github.com/hy2oni/fcc-ai
+- 프론트: https://github.com/FamilyCareCloud/fcc-frontend
+- 백엔드: https://github.com/FamilyCareCloud/fcc-backend
+- AI: https://github.com/FamilyCareCloud/fcc-ai
 
 기존 family-care-cloud 저장소를 이름 변경하고 프론트 코드를 최상위로 옮겼습니다. 기존 복사본은 remote 주소를 변경한 뒤 최신 develop을 받으세요. main은 확인된 결과, develop은 개발 통합 브랜치입니다.
 
