@@ -100,4 +100,6 @@ npm run build
 
 기존 family-care-cloud 저장소를 이름 변경하고 프론트 코드를 최상위로 옮겼습니다. 기존 복사본은 remote 주소를 변경한 뒤 최신 develop을 받으세요. main은 확인된 결과, develop은 개발 통합 브랜치입니다.
 
-AWS Amplify Hosting에서 저장소 루트를 앱 위치로 사용합니다. 빌드 명령은 npm ci 및 npm run build, 결과물 폴더는 dist입니다. 실제 Amplify 연결과 배포는 아직 수행하지 않았습니다. 개발용 시연 화면을 배포할 경우 VITE_ENABLE_DEMO=true를 명시해야 합니다.
+AWS Amplify Hosting에 첫 시연 배포를 완료했습니다. [웹사이트 열기](https://develop.db2l4u9y804jp.amplifyapp.com) · [배포 설정과 현재 연결 상태](docs/DEPLOYMENT.md)
+
+저장소 루트의 `amplify.yml`을 사용하며, 연결된 `develop` 브랜치에 푸시하면 자동 배포됩니다. 현재는 `VITE_ENABLE_DEMO=true`인 시연 화면이며 실제 백엔드 API 연결은 후속 작업입니다.
