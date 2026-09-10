@@ -131,8 +131,9 @@ export function RealSchedules({ ctx }: { ctx: RealCtx }) {
               <div className="history-item" key={a.id}>
                 <span>
                   <strong>{target?.title ?? "삭제된 일정"}</strong> ·{" "}
-                  {APPROVAL_ACTION_LABEL[a.action]}
+                  {APPROVAL_ACTION_LABEL[a.requestedAction]}
                   {a.proposedAt ? ` · ${dateLabel(a.proposedAt)} ${timeLabel(a.proposedAt)}` : ""}
+                  {a.contactRequestedAt && <Badge tone="orange">연락 요청됨</Badge>}
                   <br />
                   <small>{a.reason}</small>
                 </span>
@@ -181,7 +182,7 @@ export function RealSchedules({ ctx }: { ctx: RealCtx }) {
                   >
                     {s.status}
                   </Badge>
-                  {myPending && <Badge tone="orange">{APPROVAL_ACTION_LABEL[myPending.action]} 요청 중</Badge>}
+                  {myPending && <Badge tone="orange">{APPROVAL_ACTION_LABEL[myPending.requestedAction]} 요청 중</Badge>}
                 </div>
                 <p>
                   {dateLabel(s.scheduledAt)} {timeLabel(s.scheduledAt)} · {s.kind} · 담당{" "}

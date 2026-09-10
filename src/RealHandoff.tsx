@@ -4,6 +4,15 @@ import { dateLabel, day, memberName, timeLabel } from "./data";
 import { Badge, Empty, Icon } from "./ui";
 import type { RealCtx } from "./RealApp";
 
+function startOfDayIso(dateStr: string) {
+  return new Date(`${dateStr}T00:00:00.000`).toISOString();
+}
+function endOfDayIso(dateStr: string) {
+  const endOfDay = new Date(`${dateStr}T23:59:59.999`);
+  const now = new Date();
+  return (endOfDay > now ? now : endOfDay).toISOString();
+}
+
 function errMsg(e: unknown) {
   if (e instanceof ApiError) {
     if (e.status === 422) return "요약할 돌봄 기록이 없습니다. 선택한 기간을 확인해 주세요.";
@@ -32,15 +41,14 @@ export function RealHandoff({ ctx }: { ctx: RealCtx }) {
     }
     setBusy(true);
     try {
+      const period = { fromDate: startOfDayIso(from), toDate: endOfDayIso(to) };
       const created = result
         ? await handoffsApi.regenerate(ctx.token, ctx.groupId, result.id, {
-            fromDate: from,
-            toDate: to,
+            ...period,
             toCaregiverId: toCaregiverId || undefined,
           })
         : await handoffsApi.create(ctx.token, ctx.groupId, {
-            fromDate: from,
-            toDate: to,
+            ...period,
             toCaregiverId: toCaregiverId || undefined,
           });
       const list = await handoffsApi.list(ctx.token, ctx.groupId);

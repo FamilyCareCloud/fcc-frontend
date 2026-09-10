@@ -115,7 +115,7 @@ export const groupsApi = {
       { method: "PATCH", token, body: { nextCaregiverId } },
     ),
   transferOwnership: (token: string, groupId: string, userId: string) =>
-    request<{ primaryCaregiverId: string; members: GroupMembership[] }>(
+    request<{ primaryCaregiverId: string; nextCaregiverId: string | null; members: GroupMembership[] }>(
       `/groups/${groupId}/ownership`,
       { method: "PATCH", token, body: { userId } },
     ),
@@ -269,14 +269,18 @@ export type ApprovalDecision = "approve" | "reject" | "call";
 export type Approval = {
   id: string;
   scheduleId: string;
-  action: ApprovalAction;
+  scheduleVersion: number;
+  requestedAction: ApprovalAction;
   reason: string;
-  proposedAt?: string;
-  status: "pending" | "approved" | "rejected" | "called";
+  proposedAt: string | null;
+  status: "pending" | "approved" | "rejected";
   requestedBy: string;
+  assignedCaregiver: string;
   createdAt: string;
   decidedBy?: string;
   decidedAt?: string;
+  decisionReason?: string;
+  contactRequestedAt?: string;
 };
 export const approvalsApi = {
   list: (token: string, groupId: string) => request<Approval[]>(`/groups/${groupId}/approvals`, { token }),
