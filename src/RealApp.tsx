@@ -23,7 +23,7 @@ import { RealGroupSetup } from "./RealGroupSetup";
 import { RealRecords } from "./RealRecords";
 import { RealSchedules } from "./RealSchedules";
 import { RealFamily } from "./RealFamily";
-import { RealHandoff } from "./RealHandoff";
+
 import { RealAssistant } from "./RealAssistant";
 import { RealProfile } from "./RealProfile";
 
@@ -211,15 +211,13 @@ export function RealApp() {
             불러오는 중입니다…
           </div>
         )}
-        <div hidden={page !== "돌봄 기록"}>
-          <RealRecords ctx={ctx} />
+        <div hidden={page !== "돌봄 기록" && page !== "AI 인수인계"}>
+          <RealRecords ctx={ctx} showHandoff={page === "AI 인수인계"} onHandoff={open=>setPage(open ? "AI 인수인계" : "돌봄 기록")} />
         </div>
         <div hidden={page !== "일정"}>
           <RealSchedules ctx={ctx} />
         </div>
-        <div hidden={page !== "AI 인수인계"}>
-          <RealHandoff ctx={ctx} />
-        </div>
+
         <div hidden={page !== "AI 비서"}>
           <RealAssistant ctx={ctx} />
         </div>

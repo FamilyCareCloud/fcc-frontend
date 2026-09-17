@@ -1,3 +1,6 @@
+import { ScheduleCalendar, CalendarToolbar } from "./ScheduleCalendar";
+import { calendarDays, type CalendarView } from "./calendar";
+import "./schedule-calendar.css";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   approvalsApi,
@@ -32,6 +35,9 @@ export function RealSchedules({ ctx }: { ctx: RealCtx }) {
     version: s.version,
   }));
   const isCurrentCaregiver = ctx.group.primaryCaregiverId === ctx.session.user.userId;
+  const [view, setView] = useState<CalendarView>("day");
+  const [selectedDate, setSelectedDate] = useState(day);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [filter, setFilter] = useState("전체");
   const [editing, setEditing] = useState<(typeof schedules)[number] | "new" | null>(null);
   const [deleting, setDeleting] = useState<(typeof schedules)[number] | null>(null);
@@ -48,13 +54,13 @@ export function RealSchedules({ ctx }: { ctx: RealCtx }) {
   };
   useEffect(loadApprovals, [ctx.token, ctx.groupId]);
 
-  const visible = schedules
-    .filter(
-      (s) =>
-        filter === "전체" ||
-        (filter === "오늘" ? localInput(s.scheduledAt).startsWith(day()) : s.status === filter),
-    )
-    .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+  const filtered = schedules.filter(s => filter === "전체" || s.status === filter);
+  const range = calendarDays(selectedDate, view);
+  const visible = filtered.filter(s => {
+    const key = localInput(s.scheduledAt).slice(0,10);
+    return view === "month" ? key.slice(0,7) === selectedDate.slice(0,7) : range.includes(key);
+  }).sort((a,b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt));
+  const detail = schedules.find(s => s.scheduleId === detailId);
   const pending = approvals.filter((a) => a.status === "pending");
 
   async function changeStatus(s: (typeof schedules)[number], status: Schedule["status"]) {
@@ -102,13 +108,13 @@ export function RealSchedules({ ctx }: { ctx: RealCtx }) {
     <>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">FAMILY SCHEDULE</div>
+          <div className="eyebrow">가족과 함께 챙기는 하루</div>
           <h1>일정</h1>
           <p>병원 진료부터 가족 방문까지, 함께 챙기는 약속</p>
         </div>
         <button className="primary" onClick={() => setEditing("new")}>
           <Icon name="plus" size={18} />
-          일정 등록
+          일정 추가하기
         </button>
       </div>
       {error && (
@@ -153,8 +159,9 @@ export function RealSchedules({ ctx }: { ctx: RealCtx }) {
           })}
         </section>
       )}
-      <div className="tabs" aria-label="일정 필터">
-        {["전체", "오늘", "예정", "완료", "취소"].map((t) => (
+      <CalendarToolbar date={selectedDate} view={view} onDate={setSelectedDate} onView={setView} />
+      <div className="cal-filter-row"><div className="tabs" aria-label="일정 필터">
+        {["전체", "예정", "완료", "취소"].map((t) => (
           <button
             key={t}
             aria-pressed={filter === t}
@@ -165,6 +172,12 @@ export function RealSchedules({ ctx }: { ctx: RealCtx }) {
           </button>
         ))}
       </div>
+      <div className="cal-legend"><span><i className="medical"/>진료·검사</span><span><i className="medication"/>복약</span><span><i className="daily"/>기타 일정</span></div></div>
+      <section className="card cal-panel">
+        <div className="cal-summary"><strong>{view === "day" ? "선택한 날짜" : view === "week" ? "선택한 주" : "선택한 달"}의 일정 <b>{visible.length}건</b></strong><span>{view === "week" ? "시간표를 좌우·위아래로 스크롤해 보세요." : "일정을 누르면 상세 내용을 확인할 수 있어요."}</span></div>
+        <ScheduleCalendar date={selectedDate} view={view} schedules={filtered} onSelectDate={d=>{setSelectedDate(d);setView("day");}} onSelectEvent={setDetailId}/>
+      </section>
+      <h2 className="cal-list-title">{view === "day" ? "하루" : "선택한 기간"} 일정 목록</h2>
       <div className="record-list">
         {visible.map((s) => {
           const myPending = approvals.find((a) => a.scheduleId === s.scheduleId && a.status === "pending");
@@ -225,10 +238,16 @@ export function RealSchedules({ ctx }: { ctx: RealCtx }) {
           <Empty text="해당하는 일정이 없습니다." />
         </div>
       )}
+      {detail && <Modal title="일정 상세" onClose={()=>setDetailId(null)}>
+        <Badge tone="green">{detail.kind} · {detail.status}</Badge><h3 className="cal-detail-title">{detail.title}</h3>
+        <p>{dateLabel(detail.scheduledAt)} {timeLabel(detail.scheduledAt)}</p><p>담당 보호자 · {memberName(ctx.members,detail.caregiverId)}</p>
+        <div className="actions"><button className="secondary" onClick={()=>setDetailId(null)}>닫기</button><button className="primary" onClick={()=>{setEditing(detail);setDetailId(null);}}>수정하기</button></div>
+      </Modal>}
       {editing && (
         <ScheduleEditor
           ctx={ctx}
           initial={editing === "new" ? undefined : editing}
+          selectedDate={selectedDate}
           onClose={() => setEditing(null)}
           onSaved={async () => {
             setEditing(null);
@@ -273,6 +292,7 @@ export function RealSchedules({ ctx }: { ctx: RealCtx }) {
 }
 
 function ScheduleEditor({
+  selectedDate,
   ctx,
   initial,
   onClose,
@@ -280,11 +300,12 @@ function ScheduleEditor({
 }: {
   ctx: RealCtx;
   initial?: Schedule & { version: number };
+  selectedDate: string;
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
-  const [scheduledAt, setAt] = useState(initial ? localInput(initial.scheduledAt) : `${day()}T10:00`);
+  const [scheduledAt, setAt] = useState(initial ? localInput(initial.scheduledAt) : `${selectedDate}T10:00`);
   const [caregiverId, setCaregiver] = useState(initial?.caregiverId ?? ctx.members[0]?.id ?? "");
   const [kind, setKind] = useState(initial?.kind ?? "병원");
   const [error, setError] = useState("");
