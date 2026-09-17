@@ -24,8 +24,8 @@ export function Shell({page, navItems, navigate, name, onProfileClick, toast, on
     </header>
     <aside className="sidebar">
       <div className="nav-label">우리 가족의 공간</div>
-      <nav aria-label="주 메뉴">{primary.map(key => {const item = navItems.find(n=>n.name===key); if (!item) return null; return <button key={key} onClick={()=>navigate(key)} className={`nav-item ${page===key ? "active" : ""}`} aria-current={page===key ? "page":undefined}><Icon name={item.icon}/><span>{labels[key]??key}</span></button>;})}</nav>
-      <div className="ux-sidebar-extra"><div className="nav-label">돌봄 도구</div>{navItems.filter(n=>!primary.includes(n.name)).map(item=><button key={item.name} onClick={()=>navigate(item.name)} className={`nav-item ${page===item.name ? "active":""}`} aria-current={page===item.name ? "page":undefined}><Icon name={item.icon}/><span>{item.name}</span></button>)}<button className="nav-item" onClick={onProfileClick}><Icon name="settings"/><span>내 프로필</span></button></div>
+      <nav aria-label="주 메뉴">{primary.map(key => {const item = navItems.find(n=>n.name===key); if (!item) return null; return <button key={key} onClick={()=>navigate(key)} className={`nav-item ${(page===key || (key==="돌봄 기록" && page==="AI 인수인계")) ? "active" : ""}`} aria-current={(page===key || (key==="돌봄 기록" && page==="AI 인수인계")) ? "page":undefined}><Icon name={item.icon}/><span>{labels[key]??key}</span></button>;})}</nav>
+      <div className="ux-sidebar-extra"><div className="nav-label">돌봄 도구</div>{navItems.filter(n=>!primary.includes(n.name) && n.name!=="AI 인수인계").map(item=><button key={item.name} onClick={()=>navigate(item.name)} className={`nav-item ${page===item.name ? "active":""}`} aria-current={page===item.name ? "page":undefined}><Icon name={item.icon}/><span>{item.name}</span></button>)}<button className="nav-item" onClick={onProfileClick}><Icon name="settings"/><span>내 프로필</span></button></div>
       <div className="sidebar-bottom"><Icon name="heart" size={25}/><p>작은 기록 하나가<br/>든든한 돌봄이 되도록.</p><small>FAMILY CARE CLOUD</small></div>
     </aside>
     <main id="main" className="main">{children}</main>

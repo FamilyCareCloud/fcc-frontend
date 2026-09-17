@@ -1,3 +1,6 @@
+import { RealHandoff } from "./RealHandoff";
+import { calendarDays } from "./calendar";
+import "./records-ux.css";
 import { useState, type FormEvent } from "react";
 import {
   eventsApi,
@@ -6,6 +9,7 @@ import {
   ApiError,
 } from "./api";
 import {
+  day,
   dateLabel,
   eventTypes,
   localInput,
@@ -65,6 +69,7 @@ function RecordEditor({
         await eventsApi.update(ctx.token, ctx.groupId, record.eventId, {
           content: content.trim(),
           timestamp: iso,
+          version: record.version,
           ...(kind !== AUTO ? { type: toBackendEventType(kind) } : {}),
         });
       } else {
@@ -128,6 +133,7 @@ function RecordEditor({
               {content.length} / 2,000자{kind === AUTO ? " · AI가 자동으로 유형을 분류합니다." : ""}
             </small>
           </label>
+          <div className="record-photo"><button type="button" className="secondary" disabled><Icon name="plus" size={17}/>사진 첨부 · 준비 중</button><small>사진과 함께 기록하는 기능을 준비하고 있어요.</small></div>
         </fieldset>
         {error && (
           <p id="record-error" className="error" role="alert">
@@ -147,10 +153,11 @@ function RecordEditor({
   );
 }
 
-export function RealRecords({ ctx }: { ctx: RealCtx }) {
+export function RealRecords({ ctx, showHandoff, onHandoff }: { ctx: RealCtx; showHandoff: boolean; onHandoff: (open: boolean) => void }) {
   const events = ctx.group.events
     .map((e) => ({ ...fromBackendEvent(e), version: e.version }))
     .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+  const [period, setPeriod] = useState("오늘");
   const [type, setType] = useState("전체");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -161,10 +168,15 @@ export function RealRecords({ ctx }: { ctx: RealCtx }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const invalidRange = !!(from && to && from > to);
+  const today = day();
+  const weekStart = calendarDays(today, "week")[0];
+  const latest = [...ctx.group.handoffs].sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt))[0];
   const filtered = events.filter((e) => {
     const d = localInput(e.timestamp).slice(0, 10);
-    return (type === "전체" || e.type === type) && (!from || d >= from) && (!to || d <= to);
+    const inPeriod = period === "오늘" ? d === today : period === "이번 주" ? d >= weekStart && d <= today : d < weekStart;
+    return inPeriod && (type === "전체" || e.type === type) && (!from || d >= from) && (!to || d <= to);
   });
+  const dates = [...new Set(filtered.map(e=>localInput(e.timestamp).slice(0,10)))].sort().reverse();
   const saved = async () => {
     await ctx.reload();
     ctx.notify("돌봄 기록을 저장했습니다.");
@@ -188,7 +200,7 @@ export function RealRecords({ ctx }: { ctx: RealCtx }) {
     <>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">CARE TIMELINE</div>
+          <div className="eyebrow">가족이 함께 남기는 돌봄 이야기</div>
           <h1>돌봄 기록</h1>
           <p>{ctx.group.elder?.name ?? "고령자"} 님의 일상을 가족의 기록으로 이어갑니다.</p>
         </div>
@@ -197,6 +209,11 @@ export function RealRecords({ ctx }: { ctx: RealCtx }) {
           기록 작성
         </button>
       </div>
+      <div className="records-mode"><button className={!showHandoff ? "active" : ""} aria-pressed={!showHandoff} onClick={()=>onHandoff(false)}>돌봄 기록</button><button className={showHandoff ? "active" : ""} aria-pressed={showHandoff} onClick={()=>onHandoff(true)}><Icon name="spark" size={16}/>브리핑·인수인계</button></div>
+      {showHandoff ? <section className="records-handoff"><RealHandoff ctx={ctx}/></section> : <div className="records-layout"><div className="records-column">
+      <div className="records-period" aria-label="기록 기간">{["오늘","이번 주","지난 기록"].map(p=><button key={p} aria-pressed={period===p} className={period===p?"active":""} onClick={()=>{setPeriod(p);setFrom("");setTo("");}}>{p}</button>)}</div>
+      <p className="records-period-note">{period === "오늘" ? dateLabel(today) : period === "이번 주" ? weekStart + " ~ " + today + " · 일요일부터 오늘까지" : weekStart + " 이전의 기록과 처리 이력"}</p>
+      <details className="records-filter"><summary>상세 필터 · 유형과 날짜</summary>
       <section className="card filters" aria-label="기록 필터">
         <label>
           기록 유형
@@ -226,17 +243,18 @@ export function RealRecords({ ctx }: { ctx: RealCtx }) {
           초기화
         </button>
       </section>
+      </details>
       {invalidRange && (
         <p className="error" role="alert">
           종료 날짜는 시작 날짜 이후로 선택해 주세요.
         </p>
       )}
       <p className="list-count">
-        총 <b>{invalidRange ? 0 : filtered.length}</b>개의 기록 · 발생 시각 최신순
+        총 <b>{invalidRange ? 0 : filtered.length}</b>개의 기록 · 날짜 최신순, 같은 날짜 안에서는 시간순
       </p>
       <div className="record-list">
         {!invalidRange &&
-          filtered.map((e) => (
+          dates.map(date => <section className="records-day" key={date}><h2>{dateLabel(date)}</h2>{filtered.filter(e=>localInput(e.timestamp).slice(0,10)===date).sort((a,b)=>Date.parse(a.timestamp)-Date.parse(b.timestamp)).map((e) => (
             <article className="card record" key={e.eventId}>
               <button
                 className="record-main"
@@ -246,7 +264,7 @@ export function RealRecords({ ctx }: { ctx: RealCtx }) {
                 <span className="record-head">
                   <Badge tone={e.type === "특이사항" ? "orange" : "blue"}>{e.type}</Badge>
                   <small>
-                    {dateLabel(e.timestamp)} · {timeLabel(e.timestamp)}
+                    {memberName(ctx.members, e.createdBy)} · {dateLabel(e.timestamp)} · {timeLabel(e.timestamp)}
                   </small>
                 </span>
                 <p>{e.content}</p>
@@ -274,7 +292,7 @@ export function RealRecords({ ctx }: { ctx: RealCtx }) {
                 </button>
               </div>
             </article>
-          ))}
+          ))}</section>)}
       </div>
       {(!filtered.length || invalidRange) && (
         <div className="card">
@@ -285,6 +303,7 @@ export function RealRecords({ ctx }: { ctx: RealCtx }) {
           </Empty>
         </div>
       )}
+      </div><aside className="records-brief card"><span className="records-brief-icon"><Icon name="spark" size={25}/></span><p className="eyebrow">다음 보호자에게 전하는 이야기</p><h2>돌봄 브리핑</h2><p>{latest ? [latest.healthSummary, latest.lifeSummary].filter(Boolean).join(" ") || "생성된 인수인계의 상세 내용을 확인해 주세요." : "가족이 남긴 기록을 모아, 다음 돌봄에 필요한 내용을 함께 확인해요."}</p>{latest ? <small>최근 생성 · {dateLabel(latest.createdAt)} {timeLabel(latest.createdAt)}</small> : <small>아직 생성된 인수인계가 없어요.</small>}<button className="soft-button" onClick={()=>onHandoff(true)}>브리핑·인수인계 열기 <Icon name="arrow" size={16}/></button><div className="records-tip"><Icon name="heart" size={17}/><p>식사, 산책, 작은 변화까지.<br/>짧은 기록도 가족에게 도움이 돼요.</p></div></aside></div>}
       {(openNew || editing) && (
         <RecordEditor
           ctx={ctx}
