@@ -1,3 +1,4 @@
+import "./family-ux.css";
 import { useState, type FormEvent } from "react";
 import { groupsApi } from "./api";
 import { dateLabel, memberName, timeLabel } from "./data";
@@ -117,8 +118,8 @@ export function RealFamily({ ctx }: { ctx: RealCtx }) {
     <>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">OUR FAMILY</div>
-          <h1>가족 관리</h1>
+          <div className="eyebrow">함께 돌보는 우리 가족</div>
+          <h1>가족</h1>
           <p>함께 돌볼 가족과 돌봄 대상자를 관리해요.</p>
         </div>
         <div className="button-row">
@@ -138,15 +139,15 @@ export function RealFamily({ ctx }: { ctx: RealCtx }) {
           {error}
         </p>
       )}
-      <div className="two-column">
-        <section className="card">
+      <div className="family-overview">
+        <section className="card family-elder">
           <div className="section-head">
             <h2>
               <Icon name="heart" />
               돌봄 대상자
             </h2>
             <button className="text-button" onClick={() => open("elder")}>
-              {hasElder ? "정보 수정" : "고령자 등록"}
+              {hasElder ? "정보 수정" : "돌봄 대상 등록"}
             </button>
           </div>
           {hasElder && group.elder ? (
@@ -173,21 +174,21 @@ export function RealFamily({ ctx }: { ctx: RealCtx }) {
             <>
               <p className="inline-note">그룹에 연결할 고령자를 등록해 주세요.</p>
               <button className="primary" onClick={() => open("elder")}>
-                고령자 등록·연결
+                돌봄 대상 등록·연결
               </button>
             </>
           )}
         </section>
-        <section className="card">
+        <section className="card family-members">
           <div className="section-head">
             <h2>
               <Icon name="users" />
-              {group.name}
+              그룹 구성원 · {ctx.members.length}명
             </h2>
           </div>
-          <div className="member-list">
+          <p className="family-group-name">{group.name}</p><div className="family-member-grid">
             {ctx.members.map((m) => (
-              <div className="member" key={m.id}>
+              <div className="family-member-card" key={m.id}>
                 <span className={`avatar ${m.color}`}>{m.name.slice(-2)}</span>
                 <div>
                   <strong>{m.name}</strong>
@@ -196,22 +197,20 @@ export function RealFamily({ ctx }: { ctx: RealCtx }) {
                     {m.id === ctx.session.user.userId ? " · 나" : ""}
                   </small>
                 </div>
-                {m.id === group.primaryCaregiverId && <Badge tone="green">담당 중</Badge>}
-                {m.id === group.nextCaregiverId && <Badge>다음 담당</Badge>}
+                <div className="family-member-status">{m.id === group.primaryCaregiverId && <Badge tone="green">담당 중</Badge>}
+                {m.id === group.nextCaregiverId && <Badge>다음 담당</Badge>}</div><div className="family-contact"><span>관계·연락처 정보</span><button className="text-button" disabled>준비 중</button></div>
               </div>
             ))}
           </div>
-          <button className="text-button section-gap" onClick={() => open("leave")}>
-            그룹 탈퇴
-          </button>
+          <div className="family-invite-note"><Icon name="users" size={23}/><div><strong>함께할 가족을 초대해 주세요</strong><p>초대 코드를 전달하면 같은 그룹에서 돌봄을 함께할 수 있어요.</p></div>{isOwner ? <button className="secondary" onClick={()=>open("invite")}>초대하기</button> : <small>그룹 소유자가 초대할 수 있어요.</small>}</div>
         </section>
       </div>
-      <div className="two-column section-gap">
+      <div className="family-care-grid section-gap">
         <section className="card">
           <div className="section-head">
             <h2>
               <Icon name="users" />
-              보호자 교대
+              돌봄 이어가기
             </h2>
             <Badge tone="green">{memberName(ctx.members, group.primaryCaregiverId)} 담당 중</Badge>
           </div>
@@ -248,11 +247,7 @@ export function RealFamily({ ctx }: { ctx: RealCtx }) {
           ) : (
             <p className="inline-note">현재 담당 보호자만 교대를 진행할 수 있습니다.</p>
           )}
-          {isOwner && (
-            <button className="text-button section-gap" onClick={() => open("ownership")}>
-              그룹 소유권 이전
-            </button>
-          )}
+<div className="family-shift-pending"><span>교대 시간·장소</span><button className="secondary" disabled>설정 준비 중</button></div>
         </section>
         <section className="card">
           <div className="section-head">
@@ -276,9 +271,11 @@ export function RealFamily({ ctx }: { ctx: RealCtx }) {
           )}
         </section>
       </div>
+      <details className="family-settings card"><summary>그룹 관리</summary><p>그룹 소유권과 참여 상태를 관리합니다.</p><div className="button-row">{isOwner && <button className="secondary" onClick={()=>open("ownership")}>그룹 소유권 이전</button>}<button className="text-button" onClick={()=>open("leave")}>그룹 탈퇴</button></div></details>
       {action && typeof action === "object" && (
         <Modal title="가족 그룹 참여" onClose={() => setAction(null)}>
           <form onSubmit={acceptInvite} noValidate>
+            <p className="inline-note">가족에게 받은 초대 코드를 그대로 붙여 넣어 주세요. 초대받은 이메일의 계정으로 참여할 수 있어요.</p>
             <label className="field">
               초대 코드
               <input autoFocus required value={acceptToken} onChange={(e) => setAcceptToken(e.target.value)} />
@@ -306,7 +303,7 @@ export function RealFamily({ ctx }: { ctx: RealCtx }) {
               <p className="inline-note">
                 48시간 동안 유효한 초대 코드입니다. 직접 전달해 주세요 (이메일 발송은 하지 않습니다).
               </p>
-              <div className="invite-code">{inviteResult.token}</div>
+              <div className="invite-code">{inviteResult.token}</div><p className="micro">만료: {dateLabel(inviteResult.expiresAt)} {timeLabel(inviteResult.expiresAt)}</p><button className="secondary" onClick={async()=>{try {await navigator.clipboard.writeText(inviteResult.token);ctx.notify("초대 코드를 복사했습니다.");}catch{setError("복사하지 못했어요. 위 코드를 직접 선택해 복사해 주세요.");}}}>초대 코드 복사</button>{error && <p className="error" role="alert">{error}</p>}
               <div className="actions">
                 <button className="primary" onClick={() => setAction(null)}>
                   확인
@@ -315,6 +312,7 @@ export function RealFamily({ ctx }: { ctx: RealCtx }) {
             </>
           ) : (
             <form onSubmit={submit} noValidate>
+              <p className="inline-note">함께 돌볼 분의 이메일을 입력해 초대 코드를 만들어 주세요. 생성된 코드는 직접 공유할 수 있어요.</p>
               <label className="field">
                 초대할 이메일
                 <input
@@ -407,10 +405,10 @@ export function RealFamily({ ctx }: { ctx: RealCtx }) {
         </Modal>
       )}
       {action === "elder" && (
-        <Modal title={hasElder ? "고령자 정보 수정" : "고령자 등록"} onClose={() => setAction(null)}>
+        <Modal title={hasElder ? "돌봄 대상 정보 수정" : "돌봄 대상 등록"} onClose={() => setAction(null)}>
           <form onSubmit={submit} noValidate>
             <label className="field">
-              고령자 이름
+              돌봄 대상 이름
               <input
                 autoFocus
                 required
