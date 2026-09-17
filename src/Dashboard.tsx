@@ -1,248 +1,40 @@
+import { useEffect, useState } from "react";
 import type { BackendHandoff } from "./api";
-import { useState } from "react";
-import { Badge, Empty, Icon } from "./ui";
-import { dateLabel, memberName, timeLabel, type Member, type CareEvent, type Schedule } from "./data";
-
-export function Dashboard({
-  events,
-  schedules,
-  members,
-  current,
-  next,
-  elder,
-  navigate,
-  write,
-  name,
-  handoff,
-}: {
-  events: CareEvent[];
-  schedules: Schedule[];
-  members: Member[];
-  current: string;
-  next: string | null;
-  elder: string;
-  navigate: (page: string) => void;
-  write: () => void;
-  name: string;
-  handoff?: BackendHandoff;
+import { Badge, Icon } from "./ui";
+import { dateLabel, day, memberName, timeLabel, type Member, type CareEvent, type Schedule } from "./data";
+export function Dashboard({events,schedules,members,current,next,elder,navigate,write,name,handoff}: {
+ events:CareEvent[]; schedules:Schedule[]; members:Member[]; current:string; next:string|null; elder:string;
+ navigate:(page:string)=>void; write:()=>void; name:string; handoff?:BackendHandoff;
 }) {
-  const [now] = useState(() => Date.now());
-  const upcoming = schedules
-    .filter((s) => s.status === "예정" && Date.parse(s.scheduledAt) >= now)
-    .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
-  const todayCount = events.filter(
-    (e) =>
-      new Date(e.timestamp).toLocaleDateString() ===
-      new Date().toLocaleDateString(),
-  ).length;
-  return (
-    <>
-      <div className="greeting">
-        <div>
-          <div className="eyebrow">함께 돌보는 오늘</div>
-          <h1>
-            안녕하세요, {name} 님 <span className="wave">☀</span>
-          </h1>
-          <p>{elder} 님의 하루를 가족과 함께 이어가요.</p>
-        </div>
-        <button className="primary" onClick={write}>
-          <Icon name="plus" size={19} />
-          돌봄 기록 남기기
-        </button>
-      </div>
-      <div className="overview-grid">
-        <button
-          className="card summary mint"
-          onClick={() => navigate("돌봄 기록")}
-        >
-          <span className="card-label">
-            <Icon name="heart" />
-            <span>오늘의 돌봄</span>
-            <Icon name="chevron" size={17} />
-          </span>
-          <strong>
-            함께 남긴 기록 <em>{todayCount}건</em>
-          </strong>
-          <span className="muted">작은 일상도 소중한 돌봄이 됩니다.</span>
-          <span className="summary-foot">
-            <span className="dot green-dot" />
-            가족의 기록으로 확인하는 하루
-          </span>
-        </button>
-        <button className="card summary" onClick={() => navigate("가족 관리")}>
-          <span className="card-label">
-            <Icon name="users" />
-            <span>현재 담당 보호자</span>
-            <Icon name="chevron" size={17} />
-          </span>
-          <span className="person-row">
-            <span className="avatar green">
-              {memberName(members, current).slice(-2)}
-            </span>
-            <strong>{memberName(members, current)}</strong>
-            <Badge>담당 중</Badge>
-          </span>
-          <span className="summary-foot">
-            다음 보호자 <b>{next ? memberName(members, next) : "미지정"}</b>
-            <Icon name="arrow" size={16} />
-          </span>
-        </button>
-        <button className="card summary" onClick={() => navigate("일정")}>
-          <span className="card-label">
-            <Icon name="calendar" />
-            <span>다가오는 일정</span>
-            <Icon name="chevron" size={17} />
-          </span>
-          <strong>{upcoming[0]?.title ?? "예정된 일정이 없어요"}</strong>
-          <span className="muted">
-            {upcoming[0]
-              ? `${dateLabel(upcoming[0].scheduledAt)} · ${timeLabel(upcoming[0].scheduledAt)}`
-              : "새로운 일정을 등록해 보세요."}
-          </span>
-          <span className="summary-foot">
-            {upcoming[0]
-              ? `담당 ${memberName(members, upcoming[0].caregiverId)}`
-              : "가족과 일정을 공유해요"}
-            <Badge tone="green">예정 {upcoming.length}건</Badge>
-          </span>
-        </button>
-      </div>
-      <div className="dashboard-grid">
-        <section className="card timeline-card">
-          <div className="section-head">
-            <div>
-              <h2>
-                <Icon name="clock" />
-                Care Timeline
-              </h2>
-              <p>가족이 함께 남긴 최근 돌봄 기록</p>
-            </div>
-            <button
-              className="text-button"
-              onClick={() => navigate("돌봄 기록")}
-            >
-              전체보기 <Icon name="chevron" size={15} />
-            </button>
-          </div>
-          {!events.length ? (
-            <Empty />
-          ) : (
-            <div className="timeline">
-              {[...events].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)).slice(0, 5).map((e) => (
-                <button
-                  key={e.eventId}
-                  className="timeline-item"
-                  onClick={() => navigate("돌봄 기록")}
-                >
-                  <span
-                    className={`timeline-dot ${e.type === "생활" || e.type === "식사" ? "teal" : ""}`}
-                  />
-                  <span className="timeline-time">
-                    {timeLabel(e.timestamp)}
-                    <small>
-                      {new Date(e.timestamp).toLocaleDateString("ko-KR", {
-                        month: "numeric",
-                        day: "numeric",
-                      })}
-                    </small>
-                  </span>
-                  <span className="timeline-content">
-                    <span>
-                      <Badge tone={e.type === "특이사항" ? "orange" : "blue"}>
-                        {e.type}
-                      </Badge>
-                      <small>{memberName(members, e.createdBy)}</small>
-                    </span>
-                    <p>{e.content}</p>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-          <button className="wide-button" onClick={write}>
-            <Icon name="plus" size={18} />
-            새로운 돌봄 기록 남기기
-          </button>
-        </section>
-        <div className="dashboard-right">
-          <section className="card handoff-card">
-            <div className="section-head">
-              <div>
-                <h2>
-                  <Icon name="spark" />
-                  AI Care Handoff
-                </h2>
-                <p>다음 보호자에게 전하는 돌봄 이야기</p>
-              </div>
-
-            </div>
-            <div className="handoff-preview">
-              <div>
-                <span className="mini-icon pink">
-                  <Icon name="heart" />
-                </span>
-                <h3>건강·생활 기록</h3>
-              </div>
-              <p>
-                {[handoff?.healthSummary, handoff?.lifeSummary].filter(Boolean).join(" ") ||
-                  "아직 생성된 인수인계가 없습니다."}
-              </p>
-            </div>
-            <div className="handoff-preview warm">
-              <div>
-                <span className="mini-icon orange">
-                  <Icon name="file" />
-                </span>
-                <h3>함께 확인해 주세요</h3>
-              </div>
-              <p>{handoff?.followUp || "아직 생성된 확인 사항이 없습니다."}</p>
-            </div>
-            <button
-              className="soft-button"
-              onClick={() => navigate("AI 인수인계")}
-            >
-              인수인계 준비하기 <Icon name="arrow" size={17} />
-            </button>
-
-          </section>
-          <section className="card schedule-card">
-            <div className="section-head">
-              <h2>
-                <Icon name="calendar" />
-                함께 챙길 일정
-              </h2>
-              <button className="text-button" onClick={() => navigate("일정")}>
-                전체보기 <Icon name="chevron" size={15} />
-              </button>
-            </div>
-            {upcoming.slice(0, 2).map((s) => (
-              <button
-                className="schedule-preview"
-                key={s.scheduleId}
-                onClick={() => navigate("일정")}
-              >
-                <span className="date-tile">
-                  <small>{new Date(s.scheduledAt).getMonth() + 1}월</small>
-                  <b>{new Date(s.scheduledAt).getDate()}</b>
-                </span>
-                <span>
-                  <strong>{s.title}</strong>
-                  <small>
-                    {timeLabel(s.scheduledAt)} ·{" "}
-                    {memberName(members, s.caregiverId)}
-                  </small>
-                </span>
-                <Icon name="chevron" size={16} />
-              </button>
-            ))}
-            {!upcoming.length && <Empty text="예정된 일정이 없습니다." />}
-          </section>
-        </div>
-      </div>
-      <div className="bottom-note">
-        <Icon name="heart" size={16} />
-        함께 남기는 작은 기록이, 더 든든한 돌봄이 됩니다.
-      </div>
-    </>
-  );
+ const [now,setNow]=useState(()=>Date.now());
+ useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),60000);return ()=>clearInterval(timer);},[]);
+ const today=day();
+ const todayEvents=events.filter(e=>new Date(e.timestamp).toLocaleDateString()===new Date().toLocaleDateString());
+ const todaySchedules=schedules.filter(s=>new Date(s.scheduledAt).toLocaleDateString()===new Date().toLocaleDateString() && s.status!=="취소");
+ const upcoming=schedules.filter(s=>s.status==="예정" && Date.parse(s.scheduledAt)>=now).sort((a,b)=>Date.parse(a.scheduledAt)-Date.parse(b.scheduledAt));
+ const recent=[...events].sort((a,b)=>Date.parse(b.timestamp)-Date.parse(a.timestamp)).slice(0,4);
+ const special=todayEvents.filter(e=>e.type==="특이사항");
+ return <div className="ux-home">
+   <div className="ux-page-intro"><div><p className="eyebrow">{dateLabel(today)} · 우리 가족의 하루</p><h1>안녕하세요, {name} 님</h1><p>오늘도 함께, {elder==="고령자 미등록" ? "돌봄의 하루를 이어가요." : `${elder} 님의 하루를 이어가요.`}</p></div><button className="primary" onClick={write}><Icon name="plus" size={18}/>돌봄 기록 남기기</button></div>
+   <section className="ux-care-hero"><div className="ux-hero-copy"><span className="ux-pill"><span className="dot"/>현재 담당 보호자</span><h2><strong>{memberName(members,current)} 님</strong>이<br/>돌봄을 함께하고 있어요.</h2><p>서로의 기록을 나누며, 안심할 수 있는 하루를 만들어요.</p><button onClick={()=>navigate("가족 관리")} className="ux-hero-link">우리 가족 보기 <Icon name="arrow" size={17}/></button></div><div className="ux-hero-art" aria-hidden="true"><div className="ux-art-ring"/><div className="ux-art-person one"/><div className="ux-art-person two"/><div className="ux-art-person three"/><span className="ux-art-heart"><Icon name="heart" size={35}/></span><span className="ux-art-leaf leaf-one"/><span className="ux-art-leaf leaf-two"/></div></section>
+   <div className="ux-metrics" aria-label="오늘의 돌봄 요약">
+     <button className="ux-metric" onClick={()=>navigate("일정")}><span className="ux-metric-icon"><Icon name="calendar"/></span><span>오늘의 일정<strong>{todaySchedules.length}<small>건</small></strong></span><Icon name="chevron" size={17}/></button>
+     <button className="ux-metric ux-pending" disabled><span className="ux-metric-icon"><Icon name="check"/></span><span>복약 확인<strong>준비 중</strong><small>복용 체크 기능</small></span></button>
+     <button className="ux-metric ux-pending" disabled><span className="ux-metric-icon"><Icon name="heart"/></span><span>건강 상태<strong>준비 중</strong><small>혈압 · 혈당 · 체중</small></span></button>
+     <button className="ux-metric" onClick={()=>navigate("돌봄 기록")}><span className="ux-metric-icon warm"><Icon name="file"/></span><span>오늘의 특이사항<strong>{special.length}<small>건</small></strong></span><Icon name="chevron" size={17}/></button>
+   </div>
+   <div className="ux-home-columns"><div className="ux-home-main">
+     <section className="card ux-section"><div className="section-head"><div><p className="eyebrow">함께 챙기는 약속</p><h2>다가오는 일정</h2></div><button className="text-button" onClick={()=>navigate("일정")}>전체보기 <Icon name="chevron" size={15}/></button></div>
+       {upcoming.length ? upcoming.slice(0,3).map(s=><button className="ux-schedule-row" key={s.scheduleId} onClick={()=>navigate("일정")}><span className="ux-date-tile"><small>{new Date(s.scheduledAt).getMonth()+1}월</small><b>{new Date(s.scheduledAt).getDate()}</b></span><span><strong>{s.title}</strong><small>{timeLabel(s.scheduledAt)} · {memberName(members,s.caregiverId)}</small></span><Badge tone="green">예정</Badge></button>) : <div className="ux-empty"><span><Icon name="calendar" size={30}/></span><h3>다가오는 일정이 없어요</h3><p>진료부터 가족 방문까지, 함께 챙길 약속을 남겨보세요.</p><button className="secondary" onClick={()=>navigate("일정")}><Icon name="plus" size={16}/>일정 보러 가기</button></div>}
+     </section>
+     <section className="card ux-section"><div className="section-head"><div><p className="eyebrow">작은 일상도 소중한 기록</p><h2>최근 돌봄 기록</h2></div><button className="text-button" onClick={()=>navigate("돌봄 기록")}>전체보기 <Icon name="chevron" size={15}/></button></div>
+       {recent.length ? recent.map(e=><button className="ux-record-row" key={e.eventId} onClick={()=>navigate("돌봄 기록")}><span className="ux-record-dot"/><span className="ux-record-body"><span><Badge tone={e.type==="특이사항"?"orange":"green"}>{e.type}</Badge><small>{memberName(members,e.createdBy)} · {dateLabel(e.timestamp)} {timeLabel(e.timestamp)}</small></span><p>{e.content}</p></span></button>):<div className="ux-empty"><Icon name="file" size={28}/><h3>아직 남겨진 기록이 없어요</h3><p>오늘의 첫 돌봄 이야기를 남겨주세요.</p></div>}
+       <button className="wide-button" onClick={write}><Icon name="plus" size={17}/>기록 남기기</button>
+     </section>
+   </div><div className="ux-home-side">
+     <section className="card ux-section ux-next"><span className="ux-section-icon"><Icon name="users"/></span><p className="eyebrow">다음 돌봄을 준비해요</p><h2>다음 담당 보호자</h2><div className="ux-next-person">{next ? <><span className="avatar green">{memberName(members,next).slice(-2)}</span><strong>{memberName(members,next)} 님</strong></>:<p>아직 다음 보호자가 지정되지 않았어요.</p>}</div><button className="soft-button" onClick={()=>navigate("가족 관리")}>가족 관리에서 확인 <Icon name="arrow" size={16}/></button><p className="ux-small-note">교대 시간·장소 설정은 준비 중이에요.</p></section>
+     <section className="card ux-section ux-brief"><div className="section-head"><h2><Icon name="spark" size={19}/>돌봄 브리핑</h2></div><p>{[handoff?.healthSummary,handoff?.lifeSummary].filter(Boolean).join(" ") || "가족이 남긴 기록을 모아 다음 보호자에게 전할 내용을 확인해요."}</p>{!handoff && <span className="ux-small-note">아직 생성된 인수인계가 없어요.</span>}<button className="text-button" onClick={()=>navigate("AI 인수인계")}>인수인계 확인하기 <Icon name="arrow" size={16}/></button></section>
+     <p className="ux-home-note"><Icon name="heart" size={17}/>함께 남기는 작은 기록,<br/>더 든든해지는 우리 가족.</p>
+   </div></div>
+ </div>;
 }
