@@ -1,31 +1,46 @@
 import { useState, type FormEvent } from "react";
 import {
+  eventsApi,
+  fromBackendEvent,
+  toBackendEventType,
+  ApiError,
+} from "./api";
+import {
   dateLabel,
   eventTypes,
-  getCareApi,
   localInput,
   memberName,
   timeLabel,
-  type CareEvent,
-  type EventInput,
   type EventType,
 } from "./data";
 import { Badge, Empty, Icon, Modal } from "./ui";
-import type { Shared } from "./App";
+import type { RealCtx } from "./RealApp";
 
-export function RecordEditor({
+const AUTO = "자동 분류" as const;
+type RecordKind = EventType | typeof AUTO;
+
+function errMsg(e: unknown, fallback: string) {
+  if (e instanceof ApiError) {
+    if (e.status === 409) return "다른 가족이 먼저 이 기록을 수정했습니다. 새로고침 후 다시 시도해 주세요.";
+    if (e.status === 502) return e.message || "자동 분류에 실패했습니다. 유형을 직접 선택해 주세요.";
+    return e.message || fallback;
+  }
+  return e instanceof Error ? e.message : fallback;
+}
+
+function RecordEditor({
+  ctx,
   record,
   onClose,
   onSaved,
-  elder,
 }: {
-  record?: CareEvent;
+  ctx: RealCtx;
+  record?: ReturnType<typeof fromBackendEvent> & { version: number };
   onClose: () => void;
   onSaved: () => Promise<void>;
-  elder: string;
 }) {
   const [content, setContent] = useState(record?.content ?? "");
-  const [type, setType] = useState<EventType>(record?.type ?? "생활");
+  const [kind, setKind] = useState<RecordKind>(record?.type ?? AUTO);
   const [timestamp, setTimestamp] = useState(
     localInput(record?.timestamp ?? new Date().toISOString()),
   );
@@ -45,18 +60,24 @@ export function RecordEditor({
     }
     setBusy(true);
     try {
-      await getCareApi().save(
-        { type, content, timestamp } satisfies EventInput,
-        record?.eventId,
-      );
+      const iso = new Date(timestamp).toISOString();
+      if (record) {
+        await eventsApi.update(ctx.token, ctx.groupId, record.eventId, {
+          content: content.trim(),
+          timestamp: iso,
+          ...(kind !== AUTO ? { type: toBackendEventType(kind) } : {}),
+        });
+      } else {
+        await eventsApi.create(ctx.token, ctx.groupId, {
+          content: content.trim(),
+          timestamp: iso,
+          ...(kind === AUTO ? { analyze: true } : { type: toBackendEventType(kind) }),
+        });
+      }
       await onSaved();
       onClose();
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "저장에 실패했습니다. 입력 내용을 유지했으니 다시 시도해 주세요.",
-      );
+      setError(errMsg(e, "저장에 실패했습니다. 입력 내용을 유지했으니 다시 시도해 주세요."));
     } finally {
       setBusy(false);
     }
@@ -69,17 +90,12 @@ export function RecordEditor({
       }}
     >
       <form onSubmit={submit} noValidate>
-        <div className="inline-note">
-          {elder} 님의 가상 돌봄 기록입니다. 이 브라우저에만 저장됩니다.
-        </div>
         <fieldset disabled={busy} className="form-fields">
           <div className="form-row">
             <label className="field">
               기록 유형
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as EventType)}
-              >
+              <select value={kind} onChange={(e) => setKind(e.target.value as RecordKind)}>
+                <option value={AUTO}>자동 분류 (AI)</option>
                 {eventTypes.map((t) => (
                   <option key={t}>{t}</option>
                 ))}
@@ -90,6 +106,7 @@ export function RecordEditor({
               <input
                 type="datetime-local"
                 required
+                max={localInput(new Date().toISOString())}
                 value={timestamp}
                 onChange={(e) => setTimestamp(e.target.value)}
               />
@@ -108,7 +125,7 @@ export function RecordEditor({
               aria-describedby="record-error"
             />
             <small>
-              {content.length} / 2,000자 · AI 자동 분류는 추후 연결됩니다.
+              {content.length} / 2,000자{kind === AUTO ? " · AI가 자동으로 유형을 분류합니다." : ""}
             </small>
           </label>
         </fieldset>
@@ -118,12 +135,7 @@ export function RecordEditor({
           </p>
         )}
         <div className="actions">
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy}
-            onClick={onClose}
-          >
+          <button type="button" className="secondary" disabled={busy} onClick={onClose}>
             취소
           </button>
           <button type="submit" className="primary" disabled={busy}>
@@ -135,71 +147,39 @@ export function RecordEditor({
   );
 }
 
-export function Records({
-  events,
-  reload,
-  notify,
-  openNew,
-  setOpenNew,
-  elder,
-}: Pick<Shared, "events" | "reload" | "notify" | "elder"> & {
-  openNew: boolean;
-  setOpenNew: (v: boolean) => void;
-}) {
+export function RealRecords({ ctx }: { ctx: RealCtx }) {
+  const events = ctx.group.events
+    .map((e) => ({ ...fromBackendEvent(e), version: e.version }))
+    .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
   const [type, setType] = useState("전체");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [detail, setDetail] = useState<CareEvent | null>(null);
-  const [editing, setEditing] = useState<CareEvent | null>(null);
-  const [deleting, setDeleting] = useState<CareEvent | null>(null);
+  const [detail, setDetail] = useState<(typeof events)[number] | null>(null);
+  const [editing, setEditing] = useState<(typeof events)[number] | null>(null);
+  const [openNew, setOpenNew] = useState(false);
+  const [deleting, setDeleting] = useState<(typeof events)[number] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [resetMode, setResetMode] = useState<"empty" | "seed" | null>(null);
   const invalidRange = !!(from && to && from > to);
   const filtered = events.filter((e) => {
     const d = localInput(e.timestamp).slice(0, 10);
-    return (
-      (type === "전체" || e.type === type) &&
-      (!from || d >= from) &&
-      (!to || d <= to)
-    );
+    return (type === "전체" || e.type === type) && (!from || d >= from) && (!to || d <= to);
   });
   const saved = async () => {
-    await reload();
-    notify("가상 돌봄 기록을 저장했습니다.");
+    await ctx.reload();
+    ctx.notify("돌봄 기록을 저장했습니다.");
   };
   async function remove() {
     if (!deleting || busy) return;
     setBusy(true);
     setError("");
     try {
-      await getCareApi().remove(deleting.eventId);
+      await eventsApi.remove(ctx.token, ctx.groupId, deleting.eventId);
       setDeleting(null);
-      await reload();
-      notify("가상 돌봄 기록을 삭제했습니다.");
+      await ctx.reload();
+      ctx.notify("돌봄 기록을 삭제했습니다.");
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "삭제에 실패했습니다. 다시 시도해 주세요.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function reset() {
-    if (!resetMode || busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      await getCareApi().reset(resetMode === "empty");
-      await reload();
-      setResetMode(null);
-      notify("가상 기록을 초기화했습니다.");
-    } catch {
-      setError(
-        "가상 기록 초기화에 실패했습니다. 브라우저 저장 권한을 확인해 주세요.",
-      );
+      setError(errMsg(e, "삭제에 실패했습니다. 다시 시도해 주세요."));
     } finally {
       setBusy(false);
     }
@@ -210,7 +190,7 @@ export function Records({
         <div>
           <div className="eyebrow">CARE TIMELINE</div>
           <h1>돌봄 기록</h1>
-          <p>{elder} 님의 일상을 가족의 기록으로 이어갑니다.</p>
+          <p>{ctx.group.elder?.name ?? "고령자"} 님의 일상을 가족의 기록으로 이어갑니다.</p>
         </div>
         <button className="primary" onClick={() => setOpenNew(true)}>
           <Icon name="plus" size={18} />
@@ -229,20 +209,11 @@ export function Records({
         </label>
         <label>
           시작 날짜
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </label>
         <label>
           종료 날짜
-          <input
-            type="date"
-            value={to}
-            min={from || undefined}
-            onChange={(e) => setTo(e.target.value)}
-          />
+          <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
         </label>
         <button
           className="secondary"
@@ -261,8 +232,7 @@ export function Records({
         </p>
       )}
       <p className="list-count">
-        총 <b>{invalidRange ? 0 : filtered.length}</b>개의 기록 · 발생 시각
-        최신순
+        총 <b>{invalidRange ? 0 : filtered.length}</b>개의 기록 · 발생 시각 최신순
       </p>
       <div className="record-list">
         {!invalidRange &&
@@ -274,17 +244,14 @@ export function Records({
                 aria-label={`${e.type} 기록 상세: ${e.content}`}
               >
                 <span className="record-head">
-                  <Badge tone={e.type === "특이사항" ? "orange" : "blue"}>
-                    {e.type}
-                  </Badge>
+                  <Badge tone={e.type === "특이사항" ? "orange" : "blue"}>{e.type}</Badge>
                   <small>
                     {dateLabel(e.timestamp)} · {timeLabel(e.timestamp)}
                   </small>
                 </span>
                 <p>{e.content}</p>
                 <small>
-                  {memberName(e.createdBy)} 작성 · {dateLabel(e.createdAt)}{" "}
-                  {timeLabel(e.createdAt)}
+                  {memberName(ctx.members, e.createdBy)} 작성 · {dateLabel(e.createdAt)} {timeLabel(e.createdAt)}
                 </small>
               </button>
               <div className="record-actions">
@@ -311,63 +278,16 @@ export function Records({
       </div>
       {(!filtered.length || invalidRange) && (
         <div className="card">
-          <Empty
-            text={
-              events.length ? "선택한 조건에 맞는 기록이 없습니다." : undefined
-            }
-          >
+          <Empty text={events.length ? "선택한 조건에 맞는 기록이 없습니다." : undefined}>
             <button className="secondary" onClick={() => setOpenNew(true)}>
               첫 기록 남기기
             </button>
           </Empty>
         </div>
       )}
-      <details className="demo-tools">
-        <summary>시연 도구 · 가상 데이터 및 오류 상태 확인</summary>
-        <div>
-          <button
-            onClick={() => {
-              getCareApi().failNext("save");
-              notify(
-                "다음 기록 저장이 한 번 실패합니다. 작성 또는 수정 후 저장해 보세요.",
-              );
-            }}
-          >
-            다음 저장 실패시키기
-          </button>
-          <button
-            onClick={() => {
-              getCareApi().failNext("load");
-              void reload();
-            }}
-          >
-            조회 실패 확인
-          </button>
-          <button
-            onClick={() => {
-              setError("");
-              setResetMode("empty");
-            }}
-          >
-            빈 목록 만들기
-          </button>
-          <button
-            onClick={() => {
-              setError("");
-              setResetMode("seed");
-            }}
-          >
-            예시 기록으로 초기화
-          </button>
-        </div>
-        <p>
-          가상 기록은 새로고침 후에도 이 브라우저에 남습니다. 다른 시연 정보는
-          새로고침하면 초기화됩니다.
-        </p>
-      </details>
       {(openNew || editing) && (
         <RecordEditor
-          elder={elder}
+          ctx={ctx}
           record={editing ?? undefined}
           onClose={() => {
             setOpenNew(false);
@@ -386,7 +306,7 @@ export function Records({
               {dateLabel(detail.timestamp)} {timeLabel(detail.timestamp)}
             </dd>
             <dt>작성자</dt>
-            <dd>{memberName(detail.createdBy)}</dd>
+            <dd>{memberName(ctx.members, detail.createdBy)}</dd>
             <dt>작성 시각</dt>
             <dd>
               {dateLabel(detail.createdAt)} {timeLabel(detail.createdAt)}
@@ -415,65 +335,18 @@ export function Records({
             if (!busy) setDeleting(null);
           }}
         >
-          <p className="detail-content">
-            이 브라우저의 가상 기록을 삭제합니다. 삭제 후 되돌릴 수 없습니다.
-          </p>
+          <p className="detail-content">삭제 후 되돌릴 수 없습니다.</p>
           {error && (
             <p className="error" role="alert">
               {error}
             </p>
           )}
           <div className="actions">
-            <button
-              disabled={busy}
-              className="secondary"
-              onClick={() => setDeleting(null)}
-            >
+            <button disabled={busy} className="secondary" onClick={() => setDeleting(null)}>
               취소
             </button>
-            <button
-              disabled={busy}
-              className="danger"
-              onClick={() => void remove()}
-            >
+            <button disabled={busy} className="danger" onClick={() => void remove()}>
               {busy ? "삭제 중…" : "삭제"}
-            </button>
-          </div>
-        </Modal>
-      )}
-      {resetMode && (
-        <Modal
-          title={
-            resetMode === "empty"
-              ? "가상 기록을 모두 비울까요?"
-              : "예시 기록으로 되돌릴까요?"
-          }
-          onClose={() => {
-            if (!busy) setResetMode(null);
-          }}
-        >
-          <p className="detail-content">
-            직접 작성한 가상 기록도 초기화됩니다.
-          </p>
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
-          <div className="actions">
-            <button
-              className="secondary"
-              disabled={busy}
-              onClick={() => setResetMode(null)}
-            >
-              취소
-            </button>
-            <button
-              className="danger"
-              disabled={busy}
-              onClick={() => void reset()}
-            >
-              초기화
             </button>
           </div>
         </Modal>

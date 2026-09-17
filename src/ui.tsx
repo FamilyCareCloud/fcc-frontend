@@ -16,7 +16,8 @@ export type IconName =
   | "cloud"
   | "chevron"
   | "logout"
-  | "settings";
+  | "settings"
+  | "mic";
 const paths: Record<IconName, ReactNode> = {
   home: (
     <>
@@ -81,6 +82,12 @@ const paths: Record<IconName, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="4" />
       <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2" />
+    </>
+  ),
+  mic: (
+    <>
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4M8 22h8" />
     </>
   ),
 };
