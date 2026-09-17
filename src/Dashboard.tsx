@@ -1,3 +1,4 @@
+import type { BackendHandoff } from "./api";
 import { useState } from "react";
 import { Badge, Empty, Icon } from "./ui";
 import { dateLabel, memberName, timeLabel, type Member, type CareEvent, type Schedule } from "./data";
@@ -12,18 +13,18 @@ export function Dashboard({
   navigate,
   write,
   name,
-  demo = false,
+  handoff,
 }: {
   events: CareEvent[];
   schedules: Schedule[];
   members: Member[];
   current: string;
-  next: string;
+  next: string | null;
   elder: string;
   navigate: (page: string) => void;
   write: () => void;
   name: string;
-  demo?: boolean;
+  handoff?: BackendHandoff;
 }) {
   const [now] = useState(() => Date.now());
   const upcoming = schedules
@@ -34,7 +35,6 @@ export function Dashboard({
       new Date(e.timestamp).toLocaleDateString() ===
       new Date().toLocaleDateString(),
   ).length;
-  const special = events.find((e) => e.type === "특이사항");
   return (
     <>
       <div className="greeting">
@@ -83,7 +83,7 @@ export function Dashboard({
             <Badge>담당 중</Badge>
           </span>
           <span className="summary-foot">
-            다음 보호자 <b>{memberName(members, next)}</b>
+            다음 보호자 <b>{next ? memberName(members, next) : "미지정"}</b>
             <Icon name="arrow" size={16} />
           </span>
         </button>
@@ -128,7 +128,7 @@ export function Dashboard({
             <Empty />
           ) : (
             <div className="timeline">
-              {events.slice(0, 5).map((e) => (
+              {[...events].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)).slice(0, 5).map((e) => (
                 <button
                   key={e.eventId}
                   className="timeline-item"
@@ -174,7 +174,7 @@ export function Dashboard({
                 </h2>
                 <p>다음 보호자에게 전하는 돌봄 이야기</p>
               </div>
-              {demo && <Badge tone="purple">예시</Badge>}
+
             </div>
             <div className="handoff-preview">
               <div>
@@ -184,8 +184,8 @@ export function Dashboard({
                 <h3>건강·생활 기록</h3>
               </div>
               <p>
-                {events[0]?.content ??
-                  "기록을 남기면 인수인계할 내용을 확인할 수 있어요."}
+                {[handoff?.healthSummary, handoff?.lifeSummary].filter(Boolean).join(" ") ||
+                  "아직 생성된 인수인계가 없습니다."}
               </p>
             </div>
             <div className="handoff-preview warm">
@@ -195,7 +195,7 @@ export function Dashboard({
                 </span>
                 <h3>함께 확인해 주세요</h3>
               </div>
-              <p>{special?.content ?? "등록된 특이사항이 없습니다."}</p>
+              <p>{handoff?.followUp || "아직 생성된 확인 사항이 없습니다."}</p>
             </div>
             <button
               className="soft-button"
@@ -203,11 +203,7 @@ export function Dashboard({
             >
               인수인계 준비하기 <Icon name="arrow" size={17} />
             </button>
-            {demo && (
-              <p className="micro">
-                가상 기록 미리보기이며 실제 AI 분석 결과가 아닙니다.
-              </p>
-            )}
+
           </section>
           <section className="card schedule-card">
             <div className="section-head">

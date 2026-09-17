@@ -9,8 +9,6 @@ export function Shell({
   navItems,
   navigate,
   name,
-  badge,
-  notice,
   onProfileClick,
   toast,
   onToastClose,
@@ -20,8 +18,6 @@ export function Shell({
   navItems: NavItem[];
   navigate: (name: string) => void;
   name: string;
-  badge?: string;
-  notice?: ReactNode;
   onProfileClick: () => void;
   toast: string;
   onToastClose: () => void;
@@ -50,7 +46,6 @@ export function Shell({
           </span>
         </a>
         <div className="topbar-right">
-          {badge && <span className="demo-badge">{badge}</span>}
           <button
             className="profile-button"
             aria-label="내 프로필 열기"
@@ -101,7 +96,6 @@ export function Shell({
         </div>
       </aside>
       <main id="main" className="main">
-        {notice}
         {children}
       </main>
       {toast && (

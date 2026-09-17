@@ -148,7 +148,9 @@ function RecordEditor({
 }
 
 export function RealRecords({ ctx }: { ctx: RealCtx }) {
-  const events = ctx.group.events.map((e) => ({ ...fromBackendEvent(e), version: e.version }));
+  const events = ctx.group.events
+    .map((e) => ({ ...fromBackendEvent(e), version: e.version }))
+    .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
   const [type, setType] = useState("전체");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");

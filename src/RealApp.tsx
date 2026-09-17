@@ -77,6 +77,10 @@ export function RealApp() {
     setGroupId(null);
     setGroup(null);
     setMembers([]);
+    setProfileOpen(false);
+    setPage("대시보드");
+    setToast("");
+    setError("");
   }, []);
 
   const switchGroup = useCallback(() => {
@@ -84,6 +88,10 @@ export function RealApp() {
     setGroupId(null);
     setGroup(null);
     setMembers([]);
+    setProfileOpen(false);
+    setPage("대시보드");
+    setToast("");
+    setError("");
   }, []);
 
   const reload = useCallback(async () => {
@@ -95,7 +103,7 @@ export function RealApp() {
         groupsApi.get(session.accessToken, groupId),
         groupsApi.members(session.accessToken, groupId),
       ]);
-      setGroup(g);
+      setGroup({ ...g, schedules: g.schedules.filter((schedule) => !schedule.deletedAt) });
       setMembers(m);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
@@ -224,7 +232,8 @@ export function RealApp() {
             schedules={ctx.group.schedules.map(fromBackendSchedule)}
             members={ctx.members}
             current={ctx.group.primaryCaregiverId}
-            next={ctx.group.nextCaregiverId ?? ctx.group.primaryCaregiverId}
+            next={ctx.group.nextCaregiverId}
+            handoff={[...ctx.group.handoffs].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0]}
             elder={ctx.group.elder?.name ?? "고령자 미등록"}
             navigate={navigate}
             name={session.user.name}

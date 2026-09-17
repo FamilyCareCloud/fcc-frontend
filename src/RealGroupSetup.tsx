@@ -123,7 +123,7 @@ export function RealGroupSetup({
                       maxLength={60}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="예: 영숙 님을 돌보는 가족"
+                      placeholder="가족 그룹 이름을 입력해 주세요."
                     />
                   </label>
                   <label className="field">

@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import { authApi, ApiError, saveSession, type Session } from "./api";
 import { Icon } from "./ui";
 
+const emailDomains = ["gmail.com", "naver.com", "daum.net", "hanmail.net", "nate.com", "kakao.com", "outlook.com", "hotmail.com", "icloud.com", "yahoo.com"] as const;
+
 type Mode = "login" | "register" | "confirm";
 
 function errorMessage(e: unknown, fallback: string) {
@@ -18,7 +20,19 @@ export function RealAuth({
   onAuthenticated: (session: Session) => void;
 }) {
   const [mode, setMode] = useState<Mode>("login");
-  const [email, setEmail] = useState("");
+  const [emailId, setEmailId] = useState("");
+  const [domainChoice, setDomainChoice] = useState("gmail.com");
+  const [customDomain, setCustomDomain] = useState("");
+  const email = emailId.trim() + "@" + (domainChoice === "custom" ? customDomain.trim() : domainChoice);
+
+  function updateEmail(value: string) {
+    const at = value.indexOf("@");
+    if (at < 0) { setEmailId(value); return; }
+    setEmailId(value.slice(0, at));
+    const domain = value.slice(at + 1).trim().toLowerCase();
+    if (emailDomains.some((item) => item === domain)) setDomainChoice(domain);
+    else { setDomainChoice("custom"); setCustomDomain(domain); }
+  }
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -32,6 +46,7 @@ export function RealAuth({
     setError("");
     setBusy(true);
     try {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("이메일 아이디와 도메인을 확인해 주세요.");
       if (mode === "register") {
         if (password.length < 12 || password.length > 128) {
           throw new Error("비밀번호는 12자 이상 128자 이하로 입력해 주세요.");
@@ -73,16 +88,26 @@ export function RealAuth({
         {notice && <p className="inline-note">{notice}</p>}
         <form onSubmit={submit} noValidate>
           <fieldset disabled={busy} className="form-fields">
-            <label className="field">
-              이메일
-              <input
-                type="email"
-                autoFocus
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </label>
+            <div className="field">
+              <label htmlFor="auth-email-id">이메일</label>
+              <div className="email-input-row">
+                <input id="auth-email-id" aria-label="이메일 아이디" type="text"
+                  autoFocus required autoCapitalize="none" spellCheck={false}
+                  autoComplete="username" placeholder="아이디" value={emailId}
+                  onChange={(e) => updateEmail(e.target.value)} />
+                <span aria-hidden="true">@</span>
+                <select aria-label="이메일 도메인 선택" value={domainChoice}
+                  onChange={(e) => setDomainChoice(e.target.value)}>
+                  {emailDomains.map((domain) => <option key={domain}>{domain}</option>)}
+                  <option value="custom">직접 입력</option>
+                </select>
+              </div>
+              {domainChoice === "custom" && (
+                <input aria-label="이메일 도메인 직접 입력" type="text" required
+                  autoCapitalize="none" spellCheck={false} placeholder="도메인 입력 (예: example.com)"
+                  value={customDomain} onChange={(e) => setCustomDomain(e.target.value)} />
+              )}
+            </div>
             {mode !== "confirm" && (
               <label className="field">
                 비밀번호

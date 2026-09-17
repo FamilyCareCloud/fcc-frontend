@@ -1,9 +1,7 @@
-// Real backend client for fcc-backend (docs/API.md). Only used when VITE_API_BASE_URL is set;
-// the local prototype in data.ts / App.tsx is untouched and keeps working without a backend.
+// Backend API client.
 import type { CareEvent, EventType, Schedule } from "./data";
 
 const BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-export const backendConfigured = import.meta.env.VITE_BACKEND_CONNECTED === "true";
 
 export class ApiError extends Error {
   status: number;
@@ -169,6 +167,7 @@ export const eventsApi = {
 export type BackendScheduleType = "hospital" | "examination" | "visit" | "care_center" | "medication" | "other";
 export type BackendScheduleStatus = "scheduled" | "completed" | "cancelled";
 export type BackendSchedule = {
+  deletedAt?: string | null;
   id: string;
   elderId: string;
   title: string;

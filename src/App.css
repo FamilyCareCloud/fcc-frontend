@@ -43,14 +43,6 @@
   align-items: center;
   gap: 24px;
 }
-.demo-badge {
-  font-size: 11px;
-  letter-spacing: 1px;
-  color: #57749c;
-  border: 1px solid #d5e2f3;
-  border-radius: 6px;
-  padding: 6px 9px;
-}
 .profile-button {
   display: flex;
   align-items: center;
@@ -193,24 +185,6 @@
   margin-left: 228px;
   padding: 116px 34px 24px;
   max-width: 1900px;
-}
-.demo-notice {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 15px;
-  border: 1px solid #dce7f6;
-  background: #edf4ff;
-  color: #667f9e;
-  padding: 9px 14px;
-  border-radius: 8px;
-  font-size: 12px;
-  margin-bottom: 27px;
-}
-.demo-notice > span:first-child {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 .dot {
   height: 6px;
@@ -877,31 +851,6 @@ dialog::backdrop {
 .list-count b {
   color: #3479d8;
 }
-.demo-tools {
-  margin-top: 28px;
-  padding: 16px;
-  border: 1px dashed #d7e2ef;
-  border-radius: 10px;
-  color: #8596ae;
-  font-size: 12px;
-}
-.demo-tools summary {
-  cursor: pointer;
-}
-.demo-tools > div {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 15px;
-}
-.demo-tools button {
-  font-size: 12px;
-  background: #fff;
-  border: 1px solid #dbe5f2;
-  border-radius: 6px;
-  padding: 8px;
-  color: #677f9f;
-}
 .tabs {
   display: flex;
   gap: 6px;
@@ -1171,9 +1120,6 @@ dialog::backdrop {
   .brand b {
     font-size: 20px;
   }
-  .demo-badge {
-    display: none;
-  }
   .record {
     gap: 8px;
   }
@@ -1262,14 +1208,6 @@ dialog::backdrop {
   .main {
     margin-left: 0;
     padding: 92px 16px 98px;
-  }
-  .demo-notice {
-    font-size: 10px;
-    margin-bottom: 21px;
-    padding: 8px 10px;
-  }
-  .demo-notice > span:last-child {
-    display: none;
   }
   .greeting {
     flex-wrap: wrap;
@@ -1395,9 +1333,6 @@ dialog::backdrop {
   }
   .loading {
     padding: 65px 10px;
-  }
-  .demo-tools > div {
-    flex-direction: column;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1530,3 +1465,6 @@ dialog::backdrop {
     font-size: 16px;
   }
 }
+
+.email-input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: center; }
+.email-input-row input, .email-input-row select { width: 100%; min-width: 0; }

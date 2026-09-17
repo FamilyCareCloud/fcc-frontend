@@ -10,7 +10,7 @@ import {
   type Approval,
   type ApprovalAction,
 } from "./api";
-import { dateLabel, day, memberName, timeLabel, type Schedule } from "./data";
+import { dateLabel, day, localInput, memberName, timeLabel, type Schedule } from "./data";
 import { Badge, Empty, Icon, Modal } from "./ui";
 import type { RealCtx } from "./RealApp";
 
@@ -52,7 +52,7 @@ export function RealSchedules({ ctx }: { ctx: RealCtx }) {
     .filter(
       (s) =>
         filter === "전체" ||
-        (filter === "오늘" ? s.scheduledAt.startsWith(day()) : s.status === filter),
+        (filter === "오늘" ? localInput(s.scheduledAt).startsWith(day()) : s.status === filter),
     )
     .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
   const pending = approvals.filter((a) => a.status === "pending");
@@ -284,7 +284,7 @@ function ScheduleEditor({
   onSaved: () => Promise<void>;
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
-  const [scheduledAt, setAt] = useState(initial?.scheduledAt ?? `${day()}T10:00`);
+  const [scheduledAt, setAt] = useState(initial ? localInput(initial.scheduledAt) : `${day()}T10:00`);
   const [caregiverId, setCaregiver] = useState(initial?.caregiverId ?? ctx.members[0]?.id ?? "");
   const [kind, setKind] = useState(initial?.kind ?? "병원");
   const [error, setError] = useState("");
@@ -396,7 +396,7 @@ function ApprovalRequestModal({
 }) {
   const [action, setAction] = useState<ApprovalAction>("cancel");
   const [reason, setReason] = useState("");
-  const [proposedAt, setProposedAt] = useState(schedule.scheduledAt.slice(0, 16));
+  const [proposedAt, setProposedAt] = useState(localInput(schedule.scheduledAt));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {

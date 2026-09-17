@@ -54,6 +54,7 @@ export function RealHandoff({ ctx }: { ctx: RealCtx }) {
       const list = await handoffsApi.list(ctx.token, ctx.groupId);
       setHistory(list);
       setSelected(created.id);
+      await ctx.reload();
       ctx.notify("인수인계를 생성했습니다.");
     } catch (e) {
       setError(errMsg(e));
