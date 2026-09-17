@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { HomeDetail } from "./UxDetails";
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "./ui";
 
@@ -6,9 +8,10 @@ export function Shell({page, navItems, navigate, name, onProfileClick, toast, on
   page: string; navItems: NavItem[]; navigate: (name: string) => void; name: string;
   onProfileClick: () => void; toast: string; onToastClose: () => void; children: ReactNode;
 }) {
+  const [notifications,setNotifications]=useState(false);
   const primary = ["대시보드", "일정", "돌봄 기록", "가족 관리"];
   const labels: Record<string, string> = { 대시보드: "홈", "가족 관리": "가족" };
-  return <div className="ux-shell">
+  return <div className="ux-shell">{notifications && <HomeDetail kind="알림" onClose={()=>setNotifications(false)}/>}
     <a className="skip" href="#main">본문으로 이동</a>
     <header className="topbar">
       <a className="brand" href="#" onClick={e => {e.preventDefault(); navigate("대시보드");}}>
@@ -16,7 +19,7 @@ export function Shell({page, navItems, navigate, name, onProfileClick, toast, on
         <span><b>Family Care Cloud</b><small>함께 돌보는, 우리 가족</small></span>
       </a>
       <div className="topbar-right">
-        <span className="ux-notification"><button disabled aria-label="알림 · 준비 중"><Icon name="clock" size={19}/></button><small>알림 준비 중</small></span>
+        <span className="ux-notification"><button onClick={()=>setNotifications(true)} aria-label="알림 · 준비 중"><Icon name="clock" size={19}/></button><small>알림 준비 중</small></span>
         <button className="profile-button" aria-label="내 프로필 열기" onClick={onProfileClick}>
           <span className="avatar green">{name.slice(-2)}</span><span><b>{name} 님</b><small>내 프로필</small></span>
         </button>

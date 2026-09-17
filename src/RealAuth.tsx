@@ -1,10 +1,11 @@
+import { SettingsPreview } from "./UxDetails";
 import { useState, type FormEvent } from "react";
 import { authApi, ApiError, saveSession, type Session } from "./api";
 import { Icon } from "./ui";
 
 const emailDomains = ["gmail.com", "naver.com", "daum.net", "hanmail.net", "nate.com", "kakao.com", "outlook.com", "hotmail.com", "icloud.com", "yahoo.com"] as const;
 
-type Mode = "login" | "register" | "confirm";
+type Mode = "login" | "register" | "confirm" | "complete";
 
 function errorMessage(e: unknown, fallback: string) {
   if (e instanceof ApiError) {
@@ -33,6 +34,7 @@ export function RealAuth({
     if (emailDomains.some((item) => item === domain)) setDomainChoice(domain);
     else { setDomainChoice("custom"); setCustomDomain(domain); }
   }
+  const [passwordConfirm,setPasswordConfirm]=useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -48,6 +50,8 @@ export function RealAuth({
     try {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("이메일 아이디와 도메인을 확인해 주세요.");
       if (mode === "register") {
+        if (!name.trim()) throw new Error("이름을 입력해 주세요.");
+        if (password !== passwordConfirm) throw new Error("비밀번호가 일치하지 않아요.");
         if (password.length < 12 || password.length > 128) {
           throw new Error("비밀번호는 12자 이상 128자 이하로 입력해 주세요.");
         }
@@ -56,8 +60,8 @@ export function RealAuth({
         setMode("confirm");
       } else if (mode === "confirm") {
         await authApi.confirm({ email, code });
-        setNotice("이메일 확인이 완료되었습니다. 로그인해 주세요.");
-        setMode("login");
+        setNotice("이메일 확인이 완료되었습니다.");
+        setMode("complete");
       } else {
         const result = await authApi.login({ email, password });
         const session: Session = { accessToken: result.accessToken, user: result.user };
@@ -86,6 +90,8 @@ export function RealAuth({
               : "이메일 확인"}
         </h1>
         {notice && <p className="inline-note">{notice}</p>}
+        {mode === "complete" ? <div className="welcome-copy"><Icon name="heart" size={48}/><h2>환영합니다!</h2><p>이제 가족과 함께 돌봄을 시작해 보세요.<br/>로그인 후 초대 코드로 그룹에 참여하거나 새 그룹을 만들 수 있어요.</p><button className="primary full" onClick={()=>{setMode("login");setNotice("");}}>로그인하러 가기</button></div> : <>
+        {mode !== "login" && <div className="onboard-steps"><span className={mode === "register"?"active":""}>1 가입정보</span><span className={mode === "confirm"?"active":""}>2 이메일 확인</span><span>3 가입 완료</span></div>}
         <form onSubmit={submit} noValidate>
           <fieldset disabled={busy} className="form-fields">
             <div className="field">
@@ -122,6 +128,7 @@ export function RealAuth({
                 {mode === "register" && <small>12~128자로 입력해 주세요.</small>}
               </label>
             )}
+            {mode === "register" && <label className="field">비밀번호 확인<input type="password" autoComplete="new-password" value={passwordConfirm} onChange={e=>setPasswordConfirm(e.target.value)}/></label>}
             {mode === "register" && (
               <label className="field">
                 이름
@@ -161,7 +168,7 @@ export function RealAuth({
                     : "확인"}
             </button>
           </div>
-        </form>
+        </form>{mode === "register" && <details className="onboard-pending"><summary>추가 가입정보·알림 설정 (준비 중)</summary><fieldset disabled className="form-fields"><label className="field">연락처<input placeholder="준비 중"/></label><label className="field">돌봄 대상과의 관계<select><option>관계 선택 · 준비 중</option>{["아들","딸","며느리","사위","배우자","손자·손녀","도우미","의사","기타"].map(x=><option key={x}>{x}</option>)}</select></label><label><input type="checkbox" disabled/> 서비스 이용약관 · 준비 중</label><label><input type="checkbox" disabled/> 마케팅 정보 수신 동의 · 준비 중</label></fieldset><SettingsPreview/></details>}</>}
         <div className="actions spread">
           {mode === "login" ? (
             <button

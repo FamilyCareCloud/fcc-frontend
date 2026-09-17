@@ -1,3 +1,4 @@
+import { SettingsPreview } from "./UxDetails";
 import { useEffect, useState, type FormEvent } from "react";
 import { groupsApi, saveGroupId, type GroupSummary } from "./api";
 import { Icon } from "./ui";
@@ -13,6 +14,7 @@ export function RealGroupSetup({
   onGroupSelected: (groupId: string) => void;
   onLogout: () => void;
 }) {
+  const [joined,setJoined]=useState<string|null>(null);
   const [groups, setGroups] = useState<GroupSummary[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [action, setAction] = useState<Action>(null);
@@ -55,11 +57,11 @@ export function RealGroupSetup({
           name: name.trim(),
           elderName: elderName.trim() || undefined,
         });
-        select(group.id);
+        setJoined(group.id);
       } else if (action === "join") {
         if (!inviteToken.trim()) throw new Error("초대 코드를 입력해 주세요.");
         const result = await groupsApi.acceptInvite(token, inviteToken.trim());
-        select(result.groupId);
+        setJoined(result.groupId);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "요청을 처리하지 못했습니다.");
@@ -75,6 +77,9 @@ export function RealGroupSetup({
           <Icon name="users" size={36} />
           <p>돌봄을 함께할 가족 그룹을 선택해 주세요.</p>
         </div>
+        {joined ? <div className="welcome-copy"><Icon name="heart" size={46}/><h1>함께 돌볼 준비가 됐어요!</h1><p>가족 그룹에 참여했어요.<br/>홈에서 돌봄 일정을 확인하고 첫 기록을 남겨 보세요.</p><details className="onboard-pending"><summary>알림 설정 · 준비 중</summary><SettingsPreview/></details><button className="primary full section-gap" onClick={()=>select(joined)}>홈으로 이동</button></div> : <>
+        <h1 style={{fontSize:24,textAlign:"center"}}>{action === "join" ? "가족의 초대를 받으셨나요?" : action === "create" ? "우리 가족의 공간 만들기" : "우리 가족의 공간"}</h1>
+        {action === "join" && <><div className="onboard-steps"><span className="active">1 초대 코드</span><span>2 그룹 참여</span><span>3 시작하기</span></div><p className="inline-note">초대받은 이메일의 계정으로 코드를 입력해 주세요. 코드는 숫자뿐 아니라 문자를 포함할 수 있어요.</p><details className="onboard-pending"><summary>참여 전 그룹 확인 · 준비 중</summary><div className="detail-banner"><Icon name="users" size={32}/><p>돌봄 대상과 구성원을 미리 확인하는 화면을 준비하고 있어요.</p><button className="secondary" disabled>그룹 정보 미리 보기</button></div></details></>}
         {loadError && (
           <p className="error" role="alert">
             {loadError}
@@ -171,7 +176,7 @@ export function RealGroupSetup({
             </div>
           </form>
         )}
-        <div className="actions spread section-gap">
+        </>}<div className="actions spread section-gap">
           <button className="text-button" onClick={onLogout}>
             <Icon name="logout" size={16} />
             로그아웃
