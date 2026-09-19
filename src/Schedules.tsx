@@ -16,15 +16,20 @@ import {
   type ScheduleInput,
 } from "./api";
 import { Badge, Empty, Icon, Modal } from "./ui";
+import { Approvals } from "./Approvals";
 import type { Shared } from "./App";
 
 export function Schedules({
   schedules,
   group,
   members,
+  me,
   reload,
   notify,
-}: Pick<Shared, "schedules" | "group" | "members" | "reload" | "notify">) {
+}: Pick<
+  Shared,
+  "schedules" | "group" | "members" | "me" | "reload" | "notify"
+>) {
   const [filter, setFilter] = useState("전체");
   const [editing, setEditing] = useState<Schedule | "new" | null>(null);
   const [deleting, setDeleting] = useState<Schedule | null>(null);
@@ -169,6 +174,14 @@ export function Schedules({
           <Empty text="해당하는 일정이 없습니다." />
         </div>
       )}
+      <Approvals
+        group={group}
+        members={members}
+        me={me}
+        schedules={schedules}
+        reload={reload}
+        notify={notify}
+      />
       {editing && (
         <ScheduleEditor
           initial={editing === "new" ? undefined : editing}

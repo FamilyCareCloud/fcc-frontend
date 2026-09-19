@@ -313,3 +313,48 @@ export const assistant = {
       ...(mimeType ? { mimeType } : {}),
     }),
 };
+
+// ── 일정 승인 요청 ──────────────────────────────────────────
+export type Approval = {
+  id: string;
+  scheduleId: string;
+  requestedAction: "cancel" | "reschedule";
+  proposedAt: string | null;
+  reason: string;
+  requestedBy: string;
+  assignedCaregiver: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  decidedAt?: string;
+  decidedBy?: string;
+  contactRequestedAt?: string;
+};
+export const approvals = {
+  async list(groupId: string): Promise<Approval[]> {
+    const all = await get<Approval[]>(`${g(groupId)}/approvals`);
+    return [...all].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+  request: (
+    groupId: string,
+    input: {
+      scheduleId: string;
+      action: "cancel" | "reschedule";
+      reason: string;
+      proposedAt?: string;
+    },
+  ) =>
+    post<Approval>(`${g(groupId)}/approvals`, {
+      scheduleId: input.scheduleId,
+      action: input.action,
+      reason: input.reason.trim(),
+      ...(input.action === "reschedule" && input.proposedAt
+        ? { proposedAt: toIso(input.proposedAt) }
+        : {}),
+    }),
+  /** approve/reject/call — 현재 담당 보호자만 가능합니다. call은 연락 필요 표시일 뿐 발송하지 않습니다. */
+  decide: (
+    groupId: string,
+    id: string,
+    decision: "approve" | "reject" | "call",
+  ) => patch<Approval>(`${g(groupId)}/approvals/${id}`, { decision }),
+};
