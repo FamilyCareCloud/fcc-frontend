@@ -1530,3 +1530,48 @@ dialog::backdrop {
     font-size: 16px;
   }
 }
+
+/* 로그인·온보딩 */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+}
+.onboarding {
+  width: 100%;
+  max-width: 920px;
+}
+.auth-intro h1 {
+  margin: 0 0 6px;
+  color: #17345f;
+}
+.invite-token {
+  word-break: break-all;
+  user-select: all;
+}
+.workspace-select {
+  max-width: 220px;
+}
+.assistant-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.assistant-row input {
+  flex: 1 1 220px;
+}
+.assistant-answer {
+  white-space: pre-line;
+  margin: 12px 0 0;
+}
+.evidence-quote {
+  display: block;
+  color: #8193ac;
+  font-size: 12.5px;
+}

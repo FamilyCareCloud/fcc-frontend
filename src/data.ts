@@ -1,3 +1,8 @@
+// 화면에서 쓰는 한글 라벨/모델과 백엔드(API v0.2) 응답 사이의 변환 계층입니다.
+// 부수효과와 환경 의존이 없는 순수 함수만 두어 node 테스트에서 그대로 불러올 수 있습니다.
+
+// ── 기록 유형 ────────────────────────────────────────────────
+// 사용자가 직접 고를 수 있는 유형(백엔드 eventTypes 중 UI에 노출하는 6종).
 export const eventTypes = [
   "병원",
   "복약",
@@ -6,7 +11,75 @@ export const eventTypes = [
   "일정",
   "특이사항",
 ] as const;
-export type EventType = (typeof eventTypes)[number];
+export type EventType = string;
+const eventCodes: Record<string, string> = {
+  병원: "hospital",
+  복약: "medication",
+  식사: "meal",
+  생활: "life",
+  일정: "schedule",
+  특이사항: "observation",
+};
+const eventLabels: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(eventCodes).map(([k, v]) => [v, k])),
+  homecoming: "귀가",
+  care_center: "돌봄센터",
+  handover: "교대",
+  approval: "승인",
+};
+export const eventCode = (label: string) => eventCodes[label];
+export const eventLabel = (code: string) => eventLabels[code] ?? code;
+
+// ── 일정 종류/상태 ──────────────────────────────────────────
+export const scheduleKinds = [
+  "병원",
+  "검사",
+  "가족 방문",
+  "돌봄센터",
+  "복약",
+  "기타",
+] as const;
+const kindCodes: Record<string, string> = {
+  병원: "hospital",
+  검사: "examination",
+  "가족 방문": "visit",
+  돌봄센터: "care_center",
+  복약: "medication",
+  기타: "other",
+};
+const kindLabels = Object.fromEntries(
+  Object.entries(kindCodes).map(([k, v]) => [v, k]),
+);
+export const kindCode = (label: string) => kindCodes[label] ?? "other";
+export const kindLabel = (code: string) => kindLabels[code] ?? code;
+
+export type ScheduleStatus = "예정" | "완료" | "취소";
+export const scheduleStatuses: ScheduleStatus[] = ["예정", "완료", "취소"];
+const statusCodes: Record<ScheduleStatus, string> = {
+  예정: "scheduled",
+  완료: "completed",
+  취소: "cancelled",
+};
+const statusLabels = Object.fromEntries(
+  Object.entries(statusCodes).map(([k, v]) => [v, k]),
+) as Record<string, ScheduleStatus>;
+export const statusCode = (label: ScheduleStatus) => statusCodes[label];
+export const statusLabel = (code: string): ScheduleStatus =>
+  statusLabels[code] ?? "예정";
+
+// ── 모델 ────────────────────────────────────────────────────
+export type ApiEvent = {
+  id: string;
+  elderId: string | null;
+  type: string;
+  content: string;
+  timestamp: string;
+  createdAt: string;
+  createdBy: string;
+  source?: string;
+  version: number;
+  warning?: string;
+};
 export type CareEvent = {
   eventId: string;
   elderId: string;
@@ -15,38 +88,177 @@ export type CareEvent = {
   content: string;
   timestamp: string;
   createdAt: string;
+  version: number;
+  /** 교대·일정 등록 같은 시스템 이력. 수정/삭제할 수 없습니다. */
+  system: boolean;
 };
-export type EventInput = Pick<CareEvent, "type" | "content" | "timestamp">;
+export const toEvent = (e: ApiEvent): CareEvent => ({
+  eventId: e.id,
+  elderId: e.elderId ?? "",
+  createdBy: e.createdBy,
+  type: eventLabel(e.type),
+  content: e.content,
+  timestamp: e.timestamp,
+  createdAt: e.createdAt,
+  version: e.version,
+  system: e.source === "system",
+});
+
+export type ApiSchedule = {
+  id: string;
+  title: string;
+  type: string;
+  scheduledAt: string;
+  caregiverId: string;
+  status: string;
+  version: number;
+};
 export type Schedule = {
   scheduleId: string;
   title: string;
   scheduledAt: string;
   caregiverId: string;
-  status: "예정" | "완료" | "취소";
+  status: ScheduleStatus;
   kind: string;
+  version: number;
+};
+export const toSchedule = (s: ApiSchedule): Schedule => ({
+  scheduleId: s.id,
+  title: s.title,
+  scheduledAt: s.scheduledAt,
+  caregiverId: s.caregiverId,
+  status: statusLabel(s.status),
+  kind: kindLabel(s.type),
+  version: s.version,
+});
+
+export type ApiMember = {
+  memberId: string;
+  userId: string;
+  role: "owner" | "caregiver" | "elder";
+  joinedAt: string;
+  name: string;
 };
 export type Member = {
   id: string;
   name: string;
-  relation: string;
+  role: string;
+  canCare: boolean;
+  isOwner: boolean;
   color: string;
 };
-export const members: Member[] = [
-  { id: "demo-me", name: "김지은", relation: "딸", color: "blue" },
-  { id: "demo-brother", name: "김민수", relation: "아들", color: "green" },
-  { id: "demo-aunt", name: "김정희", relation: "동생", color: "purple" },
-];
-export const memberName = (id: string) =>
-  members.find((m) => m.id === id)?.name ?? "가상 보호자";
+const colors = ["blue", "green", "purple", "orange"];
+const roleLabels = { owner: "소유자", caregiver: "보호자", elder: "고령자" };
+export const toMember = (m: ApiMember, index: number): Member => ({
+  id: m.userId,
+  name: m.name,
+  role: roleLabels[m.role] ?? m.role,
+  canCare: m.role !== "elder",
+  isOwner: m.role === "owner",
+  color: colors[index % colors.length],
+});
+export const nameOf = (members: Member[], id: string | null | undefined) =>
+  members.find((m) => m.id === id)?.name ?? "알 수 없는 보호자";
+
+export type Elder = { id: string; name: string; birthDate: string | null; note: string };
+export type Assignment = {
+  id: string;
+  userId: string;
+  startedAt: string;
+  endedAt?: string;
+};
+export type Group = {
+  id: string;
+  name: string;
+  elder: Elder | null;
+  primaryCaregiverId: string;
+  nextCaregiverId: string | null;
+  assignments: Assignment[];
+};
+
+export type EvidenceItem = { text: string; quote?: string };
+export type HandoffSections = {
+  health: EvidenceItem[];
+  life: EvidenceItem[];
+  schedules: EvidenceItem[];
+  followUp: EvidenceItem[];
+};
+export type ApiHandoff = {
+  id: string;
+  fromCaregiverId: string;
+  toCaregiverId: string;
+  fromDate: string;
+  toDate: string;
+  createdAt: string;
+  mode?: string;
+  healthSummary: string;
+  lifeSummary: string;
+  scheduleSummary: string;
+  followUp: string;
+  evidence?: Partial<
+    Record<
+      "healthSummary" | "lifeSummary" | "scheduleSummary" | "followUp",
+      EvidenceItem[]
+    >
+  >;
+  acknowledgements: { userId: string; acknowledgedAt: string }[];
+  regeneratesId: string | null;
+};
+export type HandoffResult = {
+  id: string;
+  from: string;
+  to: string;
+  fromCaregiverId: string;
+  toCaregiverId: string;
+  createdAt: string;
+  mode: string;
+  sections: HandoffSections;
+  confirmed: boolean;
+  regeneratesId: string | null;
+};
+const lines = (summary: string): EvidenceItem[] =>
+  summary
+    .split("\n")
+    .map((text) => text.trim())
+    .filter(Boolean)
+    .map((text) => ({ text }));
+export const toHandoff = (h: ApiHandoff): HandoffResult => {
+  const pick = (
+    key: "healthSummary" | "lifeSummary" | "scheduleSummary" | "followUp",
+  ) => h.evidence?.[key] ?? lines(h[key] ?? "");
+  return {
+    id: h.id,
+    from: localInput(h.fromDate).slice(0, 10),
+    to: localInput(h.toDate).slice(0, 10),
+    fromCaregiverId: h.fromCaregiverId,
+    toCaregiverId: h.toCaregiverId,
+    createdAt: h.createdAt,
+    mode: h.mode ?? "",
+    sections: {
+      health: pick("healthSummary"),
+      life: pick("lifeSummary"),
+      schedules: pick("scheduleSummary"),
+      followUp: pick("followUp"),
+    },
+    confirmed: h.acknowledgements.some((a) => a.userId === h.toCaregiverId),
+    regeneratesId: h.regeneratesId,
+  };
+};
+
+// ── 날짜 ────────────────────────────────────────────────────
+const pad = (n: number) => String(n).padStart(2, "0");
 export function day(offset = 0) {
   const d = new Date();
   d.setDate(d.getDate() + offset);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+/** ISO 시각을 `datetime-local` 입력값(브라우저 로컬 시간)으로 바꿉니다. */
 export const localInput = (iso: string) => {
   const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
+/** `datetime-local` 입력값을 시간대가 포함된 ISO 8601로 바꿉니다. 백엔드는 시간대를 요구합니다. */
+export const toIso = (local: string) => new Date(local).toISOString();
 export const dateLabel = (iso: string) =>
   new Date(iso).toLocaleDateString("ko-KR", {
     month: "long",
@@ -59,176 +271,11 @@ export const timeLabel = (iso: string) =>
     minute: "2-digit",
     hour12: false,
   });
-export const seedEvents = (): CareEvent[] => [
-  {
-    eventId: "demo-1",
-    elderId: "demo-elder",
-    createdBy: "demo-me",
-    type: "식사",
-    content:
-      "아침 식사로 잡곡밥과 된장국을 드셨어요. 평소와 비슷한 양을 드셨습니다.",
-    timestamp: new Date(`${day()}T08:30`).toISOString(),
-    createdAt: new Date(`${day()}T08:40`).toISOString(),
-  },
-  {
-    eventId: "demo-2",
-    elderId: "demo-elder",
-    createdBy: "demo-me",
-    type: "복약",
-    content: "아침 식사 후 처방받은 약을 드신 것을 확인했어요.",
-    timestamp: new Date(`${day()}T09:00`).toISOString(),
-    createdAt: new Date(`${day()}T09:05`).toISOString(),
-  },
-  {
-    eventId: "demo-3",
-    elderId: "demo-elder",
-    createdBy: "demo-brother",
-    type: "생활",
-    content:
-      "집 앞 공원에서 함께 20분 정도 산책했어요. 꽃이 많이 피었다며 좋아하셨어요.",
-    timestamp: new Date(`${day()}T10:30`).toISOString(),
-    createdAt: new Date(`${day()}T11:00`).toISOString(),
-  },
-  {
-    eventId: "demo-4",
-    elderId: "demo-elder",
-    createdBy: "demo-aunt",
-    type: "병원",
-    content:
-      "정기 내과 진료를 다녀왔어요. 약 변경은 없고, 다음 진료 때 혈액검사가 예정되어 있어요.",
-    timestamp: new Date(`${day(-1)}T14:00`).toISOString(),
-    createdAt: new Date(`${day(-1)}T15:00`).toISOString(),
-  },
-  {
-    eventId: "demo-5",
-    elderId: "demo-elder",
-    createdBy: "demo-brother",
-    type: "특이사항",
-    content:
-      "저녁 식사를 평소보다 조금 남기셨어요. 다음 식사 때 드시는 양을 함께 확인해 주세요.",
-    timestamp: new Date(`${day(-1)}T18:30`).toISOString(),
-    createdAt: new Date(`${day(-1)}T18:45`).toISOString(),
-  },
-];
-export const seedSchedules = (): Schedule[] => [
-  {
-    scheduleId: "s1",
-    title: "저녁 복약 확인",
-    scheduledAt: `${day()}T19:00`,
-    caregiverId: "demo-me",
-    status: "예정",
-    kind: "기타",
-  },
-  {
-    scheduleId: "s2",
-    title: "가족과 함께하는 점심",
-    scheduledAt: `${day(2)}T12:00`,
-    caregiverId: "demo-brother",
-    status: "예정",
-    kind: "가족 방문",
-  },
-  {
-    scheduleId: "s3",
-    title: "내과 정기 진료 · 혈액검사",
-    scheduledAt: `${day(5)}T10:00`,
-    caregiverId: "demo-aunt",
-    status: "예정",
-    kind: "병원",
-  },
-];
-const KEY = "fcc.demo.care-events.v1";
-export type Store = Pick<Storage, "getItem" | "setItem">;
-const validEvent = (v: unknown): v is CareEvent => {
-  if (!v || typeof v !== "object") return false;
-  const e = v as CareEvent;
-  return (
-    typeof e.eventId === "string" &&
-    typeof e.elderId === "string" &&
-    typeof e.createdBy === "string" &&
-    typeof e.content === "string" &&
-    eventTypes.includes(e.type) &&
-    Number.isFinite(Date.parse(e.timestamp)) &&
-    Number.isFinite(Date.parse(e.createdAt))
-  );
-};
-export function createMockCareApi(storage: Store, delay = 300) {
-  let failure: "load" | "save" | null = null;
-  const wait = async (op: "load" | "save") => {
-    await new Promise((r) => setTimeout(r, delay));
-    if (failure === op) {
-      failure = null;
-      throw new Error(
-        op === "load"
-          ? "돌봄 기록을 불러올 수 없습니다."
-          : "저장에 실패했습니다. 입력 내용을 유지했으니 다시 시도해 주세요.",
-      );
-    }
-  };
-  const read = (): CareEvent[] => {
-    const raw = storage.getItem(KEY);
-    if (raw === null) return seedEvents();
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed) || !parsed.every(validEvent))
-      throw new Error(
-        "저장된 가상 기록을 읽을 수 없습니다. 시연 도구에서 초기화해 주세요.",
-      );
-    return parsed;
-  };
-  const write = (events: CareEvent[]) =>
-    storage.setItem(KEY, JSON.stringify(events));
+/** 인수인계 기간(로컬 날짜 2개)을 API의 fromDate/toDate로 바꿉니다. 종료일은 그날 끝, 단 현재를 넘지 않습니다. */
+export function handoffRange(from: string, to: string, now = new Date()) {
+  const end = new Date(`${to}T23:59:59`);
   return {
-    failNext(op: "load" | "save") {
-      failure = op;
-    },
-    async list() {
-      await wait("load");
-      return read().sort(
-        (a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp),
-      );
-    },
-    async save(input: EventInput, id?: string) {
-      await wait("save");
-      if (!input.content.trim()) throw new Error("돌봄 내용을 입력해 주세요.");
-      if (
-        !eventTypes.includes(input.type) ||
-        !Number.isFinite(Date.parse(input.timestamp))
-      )
-        throw new Error("유형과 발생 시각을 확인해 주세요.");
-      const all = read();
-      const existing = id ? all.find((e) => e.eventId === id) : undefined;
-      if (id && !existing) throw new Error("수정할 기록을 찾을 수 없습니다.");
-      const event: CareEvent = {
-        eventId: existing?.eventId ?? crypto.randomUUID(),
-        elderId: "demo-elder",
-        createdBy: existing?.createdBy ?? "demo-me",
-        createdAt: existing?.createdAt ?? new Date().toISOString(),
-        type: input.type,
-        content: input.content.trim(),
-        timestamp: new Date(input.timestamp).toISOString(),
-      };
-      write(
-        existing
-          ? all.map((e) => (e.eventId === id ? event : e))
-          : [...all, event],
-      );
-      return event;
-    },
-    async remove(id: string) {
-      await wait("save");
-      write(read().filter((e) => e.eventId !== id));
-    },
-    async reset(empty = false) {
-      write(empty ? [] : seedEvents());
-    },
+    fromDate: new Date(`${from}T00:00:00`).toISOString(),
+    toDate: (end > now ? now : end).toISOString(),
   };
 }
-// Temporary mock contract. Replace this boundary after the backend contract is agreed.
-// A production build never enables the prototype unless explicitly opted in.
-export const demoEnabled =
-  import.meta.env?.DEV || import.meta.env?.VITE_ENABLE_DEMO === "true";
-let mockApi: ReturnType<typeof createMockCareApi> | undefined;
-export const getCareApi = () => {
-  if (!demoEnabled) throw new Error("실제 API 연결이 필요합니다.");
-  mockApi ??= createMockCareApi(window.localStorage);
-  return mockApi;
-};

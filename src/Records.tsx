@@ -2,30 +2,32 @@ import { useState, type FormEvent } from "react";
 import {
   dateLabel,
   eventTypes,
-  getCareApi,
   localInput,
-  memberName,
+  nameOf,
   timeLabel,
   type CareEvent,
-  type EventInput,
   type EventType,
 } from "./data";
+import { errorMessage, events as eventsApi } from "./api";
 import { Badge, Empty, Icon, Modal } from "./ui";
 import type { Shared } from "./App";
 
 export function RecordEditor({
   record,
+  groupId,
   onClose,
   onSaved,
   elder,
 }: {
   record?: CareEvent;
+  groupId: string;
   onClose: () => void;
-  onSaved: () => Promise<void>;
+  onSaved: (warning?: string) => Promise<void>;
   elder: string;
 }) {
   const [content, setContent] = useState(record?.content ?? "");
-  const [type, setType] = useState<EventType>(record?.type ?? "생활");
+  // 빈 값이면 서버가 내용을 분석해 유형을 자동 분류합니다. 새 기록의 기본값입니다.
+  const [type, setType] = useState<EventType>(record?.type ?? "");
   const [timestamp, setTimestamp] = useState(
     localInput(record?.timestamp ?? new Date().toISOString()),
   );
@@ -45,17 +47,21 @@ export function RecordEditor({
     }
     setBusy(true);
     try {
-      await getCareApi().save(
-        { type, content, timestamp } satisfies EventInput,
-        record?.eventId,
-      );
-      await onSaved();
+      let warning: string | undefined;
+      if (record)
+        await eventsApi.update(groupId, record, { type, content, timestamp });
+      else
+        warning = (
+          await eventsApi.create(groupId, { type, content, timestamp })
+        ).warning;
+      await onSaved(warning);
       onClose();
     } catch (e) {
       setError(
-        e instanceof Error
-          ? e.message
-          : "저장에 실패했습니다. 입력 내용을 유지했으니 다시 시도해 주세요.",
+        errorMessage(
+          e,
+          "저장에 실패했습니다. 입력 내용을 유지했으니 다시 시도해 주세요.",
+        ),
       );
     } finally {
       setBusy(false);
@@ -70,7 +76,7 @@ export function RecordEditor({
     >
       <form onSubmit={submit} noValidate>
         <div className="inline-note">
-          {elder} 님의 가상 돌봄 기록입니다. 이 브라우저에만 저장됩니다.
+          {elder} 님의 돌봄 기록입니다. 가족 그룹 구성원에게 공유됩니다.
         </div>
         <fieldset disabled={busy} className="form-fields">
           <div className="form-row">
@@ -80,6 +86,7 @@ export function RecordEditor({
                 value={type}
                 onChange={(e) => setType(e.target.value as EventType)}
               >
+                {!record && <option value="">자동 분류 (AI)</option>}
                 {eventTypes.map((t) => (
                   <option key={t}>{t}</option>
                 ))}
@@ -108,7 +115,7 @@ export function RecordEditor({
               aria-describedby="record-error"
             />
             <small>
-              {content.length} / 2,000자 · AI 자동 분류는 추후 연결됩니다.
+              {content.length} / 2,000자 · 유형을 '자동 분류'로 두면 AI가 유형을 정합니다.
             </small>
           </label>
         </fieldset>
@@ -141,8 +148,13 @@ export function Records({
   notify,
   openNew,
   setOpenNew,
-  elder,
-}: Pick<Shared, "events" | "reload" | "notify" | "elder"> & {
+  group,
+  members,
+  me,
+}: Pick<
+  Shared,
+  "events" | "reload" | "notify" | "group" | "members" | "me"
+> & {
   openNew: boolean;
   setOpenNew: (v: boolean) => void;
 }) {
@@ -154,7 +166,9 @@ export function Records({
   const [deleting, setDeleting] = useState<CareEvent | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [resetMode, setResetMode] = useState<"empty" | "seed" | null>(null);
+  const elder = group.elder?.name ?? "돌봄 대상자";
+  const who = (id: string) => nameOf(members, id);
+  const mine = (e: CareEvent) => !e.system && e.createdBy === me.userId;
   const invalidRange = !!(from && to && from > to);
   const filtered = events.filter((e) => {
     const d = localInput(e.timestamp).slice(0, 10);
@@ -164,42 +178,21 @@ export function Records({
       (!to || d <= to)
     );
   });
-  const saved = async () => {
+  const saved = async (warning?: string) => {
     await reload();
-    notify("가상 돌봄 기록을 저장했습니다.");
+    notify(warning ?? "돌봄 기록을 저장했습니다.");
   };
   async function remove() {
     if (!deleting || busy) return;
     setBusy(true);
     setError("");
     try {
-      await getCareApi().remove(deleting.eventId);
+      await eventsApi.remove(group.id, deleting.eventId);
       setDeleting(null);
       await reload();
-      notify("가상 돌봄 기록을 삭제했습니다.");
+      notify("돌봄 기록을 삭제했습니다.");
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "삭제에 실패했습니다. 다시 시도해 주세요.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function reset() {
-    if (!resetMode || busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      await getCareApi().reset(resetMode === "empty");
-      await reload();
-      setResetMode(null);
-      notify("가상 기록을 초기화했습니다.");
-    } catch {
-      setError(
-        "가상 기록 초기화에 실패했습니다. 브라우저 저장 권한을 확인해 주세요.",
-      );
+      setError(errorMessage(e, "삭제에 실패했습니다. 다시 시도해 주세요."));
     } finally {
       setBusy(false);
     }
@@ -283,10 +276,12 @@ export function Records({
                 </span>
                 <p>{e.content}</p>
                 <small>
-                  {memberName(e.createdBy)} 작성 · {dateLabel(e.createdAt)}{" "}
+                  {e.system ? "시스템 이력" : `${who(e.createdBy)} 작성`} ·{" "}
+                  {dateLabel(e.createdAt)}{" "}
                   {timeLabel(e.createdAt)}
                 </small>
               </button>
+              {mine(e) && (
               <div className="record-actions">
                 <button
                   className="icon-button"
@@ -306,6 +301,7 @@ export function Records({
                   <Icon name="trash" size={18} />
                 </button>
               </div>
+              )}
             </article>
           ))}
       </div>
@@ -322,51 +318,9 @@ export function Records({
           </Empty>
         </div>
       )}
-      <details className="demo-tools">
-        <summary>시연 도구 · 가상 데이터 및 오류 상태 확인</summary>
-        <div>
-          <button
-            onClick={() => {
-              getCareApi().failNext("save");
-              notify(
-                "다음 기록 저장이 한 번 실패합니다. 작성 또는 수정 후 저장해 보세요.",
-              );
-            }}
-          >
-            다음 저장 실패시키기
-          </button>
-          <button
-            onClick={() => {
-              getCareApi().failNext("load");
-              void reload();
-            }}
-          >
-            조회 실패 확인
-          </button>
-          <button
-            onClick={() => {
-              setError("");
-              setResetMode("empty");
-            }}
-          >
-            빈 목록 만들기
-          </button>
-          <button
-            onClick={() => {
-              setError("");
-              setResetMode("seed");
-            }}
-          >
-            예시 기록으로 초기화
-          </button>
-        </div>
-        <p>
-          가상 기록은 새로고침 후에도 이 브라우저에 남습니다. 다른 시연 정보는
-          새로고침하면 초기화됩니다.
-        </p>
-      </details>
       {(openNew || editing) && (
         <RecordEditor
+          groupId={group.id}
           elder={elder}
           record={editing ?? undefined}
           onClose={() => {
@@ -386,22 +340,24 @@ export function Records({
               {dateLabel(detail.timestamp)} {timeLabel(detail.timestamp)}
             </dd>
             <dt>작성자</dt>
-            <dd>{memberName(detail.createdBy)}</dd>
+            <dd>{detail.system ? "시스템" : who(detail.createdBy)}</dd>
             <dt>작성 시각</dt>
             <dd>
               {dateLabel(detail.createdAt)} {timeLabel(detail.createdAt)}
             </dd>
           </dl>
           <div className="actions">
-            <button
-              className="secondary"
-              onClick={() => {
-                setEditing(detail);
-                setDetail(null);
-              }}
-            >
-              수정
-            </button>
+            {mine(detail) && (
+              <button
+                className="secondary"
+                onClick={() => {
+                  setEditing(detail);
+                  setDetail(null);
+                }}
+              >
+                수정
+              </button>
+            )}
             <button className="primary" onClick={() => setDetail(null)}>
               닫기
             </button>
@@ -416,7 +372,7 @@ export function Records({
           }}
         >
           <p className="detail-content">
-            이 브라우저의 가상 기록을 삭제합니다. 삭제 후 되돌릴 수 없습니다.
+            이 돌봄 기록을 삭제합니다. 삭제 후 되돌릴 수 없습니다.
           </p>
           {error && (
             <p className="error" role="alert">
@@ -437,43 +393,6 @@ export function Records({
               onClick={() => void remove()}
             >
               {busy ? "삭제 중…" : "삭제"}
-            </button>
-          </div>
-        </Modal>
-      )}
-      {resetMode && (
-        <Modal
-          title={
-            resetMode === "empty"
-              ? "가상 기록을 모두 비울까요?"
-              : "예시 기록으로 되돌릴까요?"
-          }
-          onClose={() => {
-            if (!busy) setResetMode(null);
-          }}
-        >
-          <p className="detail-content">
-            직접 작성한 가상 기록도 초기화됩니다.
-          </p>
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
-          <div className="actions">
-            <button
-              className="secondary"
-              disabled={busy}
-              onClick={() => setResetMode(null)}
-            >
-              취소
-            </button>
-            <button
-              className="danger"
-              disabled={busy}
-              onClick={() => void reset()}
-            >
-              초기화
             </button>
           </div>
         </Modal>

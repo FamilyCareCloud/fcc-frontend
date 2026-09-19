@@ -3,21 +3,36 @@ import { Badge, Empty, Icon, type IconName } from "./ui";
 import {
   dateLabel,
   day,
-  demoEnabled,
-  getCareApi,
-  memberName,
-  members,
-  seedSchedules,
+  nameOf,
   timeLabel,
   type CareEvent,
+  type Group,
+  type Member,
   type Schedule,
 } from "./data";
+import {
+  API_BASE,
+  auth,
+  errorMessage,
+  events as eventsApi,
+  groups as groupsApi,
+  loadSession,
+  schedules as schedulesApi,
+  setSession,
+  setUnauthorizedHandler,
+  type GroupSummary,
+  type Session,
+  type User,
+} from "./api";
 import "./App.css";
 import { Records } from "./Records";
 import { Schedules } from "./Schedules";
 import { Family } from "./Family";
 import { Handoff } from "./Handoff";
 import { Profile } from "./Profile";
+import { Auth } from "./Auth";
+import { Onboarding } from "./Onboarding";
+import { Assistant } from "./Assistant";
 
 export type Page =
   | "대시보드"
@@ -32,51 +47,58 @@ const navigation: { name: Page; icon: IconName; english: string }[] = [
   { name: "AI 인수인계", icon: "spark", english: "Care Handoff" },
   { name: "가족 관리", icon: "users", english: "Our Family" },
 ];
+const needsElder: Page[] = ["돌봄 기록", "일정", "AI 인수인계"];
+
 export type Shared = {
+  me: User;
+  group: Group;
+  members: Member[];
   events: CareEvent[];
-  reload: () => Promise<void>;
   schedules: Schedule[];
-  setSchedules: React.Dispatch<React.SetStateAction<Schedule[]>>;
-  current: string;
-  setCurrent: (id: string) => void;
-  next: string;
-  setNext: (id: string) => void;
+  /** 그룹의 구성원·담당자·기록·일정을 서버에서 다시 불러옵니다. */
+  reload: () => Promise<void>;
+  /** 소속 그룹 목록을 다시 불러오고 선택 그룹을 바꿉니다. */
+  switchGroup: (id: string) => Promise<void>;
   notify: (text: string) => void;
-  elder: string;
-  setElder: (name: string) => void;
 };
 
 function Dashboard({
   events,
   schedules,
-  current,
-  next,
-  elder,
+  group,
+  members,
+  me,
   navigate,
   write,
-  name,
-}: Pick<Shared, "events" | "schedules" | "current" | "next" | "elder"> & {
+  notify,
+}: Pick<
+  Shared,
+  "events" | "schedules" | "group" | "members" | "me" | "notify"
+> & {
   navigate: (page: Page) => void;
   write: () => void;
-  name: string;
 }) {
   const [now] = useState(() => Date.now());
+  const who = (id: string | null | undefined) => nameOf(members, id);
+  const elder = group.elder?.name ?? "돌봄 대상자";
   const upcoming = schedules
     .filter((s) => s.status === "예정" && Date.parse(s.scheduledAt) >= now)
-    .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
-  const todayCount = events.filter(
+    .sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt));
+  const caregiverEvents = events.filter((e) => !e.system);
+  const todayCount = caregiverEvents.filter(
     (e) =>
       new Date(e.timestamp).toLocaleDateString() ===
       new Date().toLocaleDateString(),
   ).length;
-  const special = events.find((e) => e.type === "특이사항");
+  const special = caregiverEvents.find((e) => e.type === "특이사항");
+  const current = group.primaryCaregiverId;
   return (
     <>
       <div className="greeting">
         <div>
           <div className="eyebrow">함께 돌보는 오늘</div>
           <h1>
-            안녕하세요, {name} 님 <span className="wave">☀</span>
+            안녕하세요, {me.name} 님 <span className="wave">☀</span>
           </h1>
           <p>{elder} 님의 하루를 가족과 함께 이어가요.</p>
         </div>
@@ -85,6 +107,9 @@ function Dashboard({
           돌봄 기록 남기기
         </button>
       </div>
+      {group.elder && (
+        <Assistant groupId={group.id} notify={notify} />
+      )}
       <div className="overview-grid">
         <button
           className="card summary mint"
@@ -111,14 +136,13 @@ function Dashboard({
             <Icon name="chevron" size={17} />
           </span>
           <span className="person-row">
-            <span className="avatar green">
-              {memberName(current).slice(-2)}
-            </span>
-            <strong>{memberName(current)}</strong>
+            <span className="avatar green">{who(current).slice(-2)}</span>
+            <strong>{who(current)}</strong>
             <Badge>담당 중</Badge>
           </span>
           <span className="summary-foot">
-            다음 보호자 <b>{memberName(next)}</b>
+            다음 보호자{" "}
+            <b>{group.nextCaregiverId ? who(group.nextCaregiverId) : "미지정"}</b>
             <Icon name="arrow" size={16} />
           </span>
         </button>
@@ -136,7 +160,7 @@ function Dashboard({
           </span>
           <span className="summary-foot">
             {upcoming[0]
-              ? `담당 ${memberName(upcoming[0].caregiverId)}`
+              ? `담당 ${who(upcoming[0].caregiverId)}`
               : "가족과 일정을 공유해요"}
             <Badge tone="green">예정 {upcoming.length}건</Badge>
           </span>
@@ -159,11 +183,11 @@ function Dashboard({
               전체보기 <Icon name="chevron" size={15} />
             </button>
           </div>
-          {!events.length ? (
+          {!caregiverEvents.length ? (
             <Empty />
           ) : (
             <div className="timeline">
-              {events.slice(0, 5).map((e) => (
+              {caregiverEvents.slice(0, 5).map((e) => (
                 <button
                   key={e.eventId}
                   className="timeline-item"
@@ -186,7 +210,7 @@ function Dashboard({
                       <Badge tone={e.type === "특이사항" ? "orange" : "blue"}>
                         {e.type}
                       </Badge>
-                      <small>{memberName(e.createdBy)}</small>
+                      <small>{who(e.createdBy)}</small>
                     </span>
                     <p>{e.content}</p>
                   </span>
@@ -209,7 +233,7 @@ function Dashboard({
                 </h2>
                 <p>다음 보호자에게 전하는 돌봄 이야기</p>
               </div>
-              <Badge tone="purple">예시</Badge>
+              <Badge tone="purple">최근 기록</Badge>
             </div>
             <div className="handoff-preview">
               <div>
@@ -219,7 +243,7 @@ function Dashboard({
                 <h3>건강·생활 기록</h3>
               </div>
               <p>
-                {events[0]?.content ??
+                {caregiverEvents[0]?.content ??
                   "기록을 남기면 인수인계할 내용을 확인할 수 있어요."}
               </p>
             </div>
@@ -239,7 +263,7 @@ function Dashboard({
               인수인계 준비하기 <Icon name="arrow" size={17} />
             </button>
             <p className="micro">
-              가상 기록 미리보기이며 실제 AI 분석 결과가 아닙니다.
+              저장된 최근 기록입니다. AI 요약은 인수인계 메뉴에서 생성합니다.
             </p>
           </section>
           <section className="card schedule-card">
@@ -265,7 +289,7 @@ function Dashboard({
                 <span>
                   <strong>{s.title}</strong>
                   <small>
-                    {timeLabel(s.scheduledAt)} · {memberName(s.caregiverId)}
+                    {timeLabel(s.scheduledAt)} · {who(s.caregiverId)}
                   </small>
                 </span>
                 <Icon name="chevron" size={16} />
@@ -283,56 +307,65 @@ function Dashboard({
   );
 }
 
-function App() {
+type GroupData = {
+  group: Group;
+  members: Member[];
+  events: CareEvent[];
+  schedules: Schedule[];
+};
+
+function GroupWorkspace({
+  me,
+  setMe,
+  groupList,
+  groupId,
+  switchGroup,
+  onLogout,
+}: {
+  me: User;
+  setMe: (u: User) => void;
+  groupList: GroupSummary[];
+  groupId: string;
+  switchGroup: (id: string) => Promise<void>;
+  onLogout: () => void;
+}) {
   const [page, setPage] = useState<Page>("대시보드");
-  const [events, setEvents] = useState<CareEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<GroupData | null>(null);
   const [error, setError] = useState("");
-  const [schedules, setSchedules] = useState(seedSchedules);
-  const [current, setCurrent] = useState(members[0].id);
-  const [next, setNext] = useState(members[1].id);
-  const [elder, setElder] = useState("김영숙");
   const [toast, setToast] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
-  const [name, setName] = useState("김지은");
   const [openNew, setOpenNew] = useState(false);
+  const load = useCallback(async () => {
+    const [group, members] = await Promise.all([
+      groupsApi.detail(groupId),
+      groupsApi.members(groupId),
+    ]);
+    // 기록·일정 API는 고령자 등록 후에만 열립니다(409).
+    const [events, schedules] = group.elder
+      ? await Promise.all([
+          eventsApi.list(groupId),
+          schedulesApi.list(groupId),
+        ])
+      : [[], []];
+    setData({ group, members, events, schedules });
+  }, [groupId]);
   const reload = useCallback(async () => {
-    setLoading(true);
     setError("");
     try {
-      setEvents(await getCareApi().list());
+      await load();
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "돌봄 기록을 불러올 수 없습니다.",
-      );
-    } finally {
-      setLoading(false);
+      setError(errorMessage(e, "데이터를 불러올 수 없습니다."));
     }
-  }, []);
+  }, [load]);
   useEffect(() => {
     let active = true;
-    if (demoEnabled) {
-      Promise.resolve()
-        .then(() => getCareApi().list())
-        .then((items) => {
-          if (active) setEvents(items);
-        })
-        .catch((e) => {
-          if (active)
-            setError(
-              e instanceof Error
-                ? e.message
-                : "돌봄 기록을 불러올 수 없습니다.",
-            );
-        })
-        .finally(() => {
-          if (active) setLoading(false);
-        });
-    }
+    load().catch((e) => {
+      if (active) setError(errorMessage(e, "데이터를 불러올 수 없습니다."));
+    });
     return () => {
       active = false;
     };
-  }, []);
+  }, [load]);
   useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(""), 4500);
@@ -342,27 +375,53 @@ function App() {
     setPage(p);
     window.scrollTo({ top: 0 });
   };
-  const shared: Shared = {
-    events,
-    reload,
-    schedules,
-    setSchedules,
-    current,
-    setCurrent,
-    next,
-    setNext,
-    notify: setToast,
-    elder,
-    setElder,
-  };
-  if (!demoEnabled)
+
+  if (!data)
     return (
       <main className="production-gate">
         <Icon name="cloud" size={56} />
-        <h1>Family Care Cloud</h1>
-        <p>서비스 연결 준비 중입니다.</p>
-        <p>현재 빌드에는 실제 API가 연결되어 있지 않습니다.</p>
+        {error ? (
+          <>
+            <p role="alert" className="error">
+              {error}
+            </p>
+            <div className="actions">
+              <button className="secondary" onClick={onLogout}>
+                로그아웃
+              </button>
+              <button className="primary" onClick={() => void reload()}>
+                다시 불러오기
+              </button>
+            </div>
+          </>
+        ) : (
+          <p role="status">돌봄 기록을 불러오는 중입니다…</p>
+        )}
       </main>
+    );
+
+  const { group } = data;
+  const shared: Shared = {
+    me,
+    group,
+    members: data.members,
+    events: data.events,
+    schedules: data.schedules,
+    reload,
+    switchGroup,
+    notify: setToast,
+  };
+  const gate = (p: Page, node: React.ReactNode) =>
+    needsElder.includes(p) && !group.elder ? (
+      <div className="card">
+        <Empty text="먼저 가족 관리에서 돌봄 대상자(고령자)를 등록해 주세요.">
+          <button className="primary" onClick={() => navigate("가족 관리")}>
+            가족 관리로 이동
+          </button>
+        </Empty>
+      </div>
+    ) : (
+      node
     );
   return (
     <>
@@ -387,15 +446,30 @@ function App() {
           </span>
         </a>
         <div className="topbar-right">
-          <span className="demo-badge">PROTOTYPE</span>
+          {groupList.length > 1 && (
+            <label>
+              <span className="sr-only">가족 그룹 선택</span>
+              <select
+                className="workspace-select"
+                value={groupId}
+                onChange={(e) => void switchGroup(e.target.value)}
+              >
+                {groupList.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button
             className="profile-button"
             aria-label="내 프로필 열기"
             onClick={() => setProfileOpen(true)}
           >
-            <span className="avatar blue">{name.slice(-2)}</span>
+            <span className="avatar blue">{me.name.slice(-2)}</span>
             <span>
-              <b>{name} 님</b>
+              <b>{me.name} 님</b>
               <small>함께 돌보는 가족</small>
             </span>
             <Icon name="chevron" size={16} />
@@ -438,13 +512,6 @@ function App() {
         </div>
       </aside>
       <main id="main" className="main">
-        <div className="demo-notice">
-          <span>
-            <span className="dot" />
-            가상 가족으로 둘러보는 시연 화면
-          </span>
-          <span>기록은 이 브라우저에만 저장됩니다.</span>
-        </div>
         {error ? (
           <div role="alert" className="error">
             {error}
@@ -453,30 +520,26 @@ function App() {
             </button>
           </div>
         ) : null}
-        {loading && (
-          <div className="inline-note" role="status">
-            돌봄 기록을 불러오는 중입니다…
-          </div>
-        )}
         <div hidden={page !== "대시보드"}>
           <Dashboard
             {...shared}
             navigate={navigate}
-            name={name}
             write={() => {
+              if (!group.elder) return navigate("가족 관리");
               navigate("돌봄 기록");
               setOpenNew(true);
             }}
           />
         </div>
         <div hidden={page !== "돌봄 기록"}>
-          <Records {...shared} openNew={openNew} setOpenNew={setOpenNew} />
+          {gate(
+            "돌봄 기록",
+            <Records {...shared} openNew={openNew} setOpenNew={setOpenNew} />,
+          )}
         </div>
-        <div hidden={page !== "일정"}>
-          <Schedules {...shared} />
-        </div>
+        <div hidden={page !== "일정"}>{gate("일정", <Schedules {...shared} />)}</div>
         <div hidden={page !== "AI 인수인계"}>
-          <Handoff {...shared} />
+          {gate("AI 인수인계", <Handoff {...shared} />)}
         </div>
         <div hidden={page !== "가족 관리"}>
           <Family {...shared} />
@@ -484,12 +547,13 @@ function App() {
       </main>
       {profileOpen && (
         <Profile
-          name={name}
-          setName={setName}
+          user={me}
+          setUser={setMe}
           notify={setToast}
+          onLogout={onLogout}
           onClose={() => setProfileOpen(false)}
         />
-      )}{" "}
+      )}
       {toast && (
         <div className="toast" role="status">
           <Icon name="check" size={18} />
@@ -500,6 +564,155 @@ function App() {
         </div>
       )}
     </>
+  );
+}
+
+const groupKey = (userId: string) => `fcc.group.${userId}`;
+function Workspace({
+  session,
+  onLogout,
+}: {
+  session: Session;
+  onLogout: () => void;
+}) {
+  const [me, setMe] = useState(session.user);
+  const [list, setList] = useState<GroupSummary[] | null>(null);
+  const [groupId, setGroupId] = useState("");
+  const [error, setError] = useState("");
+  /** 목록을 다시 받고, 원하는 그룹(없으면 저장된 그룹, 그것도 없으면 첫 그룹)을 선택합니다. */
+  const refresh = useCallback(
+    async (prefer?: string) => {
+      const next = await groupsApi.list();
+      let saved = "";
+      try {
+        saved = window.localStorage.getItem(groupKey(session.user.userId)) ?? "";
+      } catch {
+        /* 저장소를 못 써도 첫 그룹으로 진행합니다. */
+      }
+      const pick =
+        [prefer, saved].find((id) => id && next.some((g) => g.id === id)) ??
+        next[0]?.id ??
+        "";
+      try {
+        if (pick) window.localStorage.setItem(groupKey(session.user.userId), pick);
+      } catch {
+        /* noop */
+      }
+      setList(next);
+      setGroupId(pick);
+    },
+    [session.user.userId],
+  );
+  useEffect(() => {
+    let active = true;
+    refresh().catch((e) => {
+      if (active) setError(errorMessage(e, "그룹 정보를 불러올 수 없습니다."));
+    });
+    return () => {
+      active = false;
+    };
+  }, [refresh]);
+
+  if (error)
+    return (
+      <main className="production-gate">
+        <Icon name="cloud" size={56} />
+        <p role="alert" className="error">
+          {error}
+        </p>
+        <div className="actions">
+          <button className="secondary" onClick={onLogout}>
+            로그아웃
+          </button>
+          <button
+            className="primary"
+            onClick={() => {
+              setError("");
+              refresh().catch((e) =>
+                setError(errorMessage(e, "그룹 정보를 불러올 수 없습니다.")),
+              );
+            }}
+          >
+            다시 시도
+          </button>
+        </div>
+      </main>
+    );
+  if (!list)
+    return (
+      <main className="production-gate">
+        <Icon name="cloud" size={56} />
+        <p role="status">불러오는 중입니다…</p>
+      </main>
+    );
+  if (!groupId)
+    return (
+      <Onboarding
+        name={me.name}
+        onDone={(id) => void refresh(id)}
+        onLogout={onLogout}
+      />
+    );
+  return (
+    <GroupWorkspace
+      key={groupId}
+      me={me}
+      setMe={setMe}
+      groupList={list}
+      groupId={groupId}
+      switchGroup={refresh}
+      onLogout={onLogout}
+    />
+  );
+}
+
+function App() {
+  const [session, setSessionState] = useState<Session | null>(() => {
+    const s = loadSession();
+    setSession(s);
+    return s;
+  });
+  const [expired, setExpired] = useState(false);
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setSessionState(null);
+      setExpired(true);
+    });
+  }, []);
+  async function logout() {
+    try {
+      await auth.logout();
+    } catch {
+      /* 서버 호출이 실패해도 이 기기의 세션은 지웁니다. */
+    }
+    setExpired(false);
+    setSessionState(null);
+  }
+  if (!API_BASE)
+    return (
+      <main className="production-gate">
+        <Icon name="cloud" size={56} />
+        <h1>Family Care Cloud</h1>
+        <p>서비스 연결 준비 중입니다.</p>
+        <p>VITE_API_BASE_URL이 설정되지 않아 API에 연결할 수 없습니다.</p>
+      </main>
+    );
+  if (!session)
+    return (
+      <Auth
+        expired={expired}
+        onLogin={(s) => {
+          setExpired(false);
+          setSessionState(s);
+        }}
+      />
+    );
+  return (
+    <Workspace
+      key={session.user.userId}
+      session={session}
+      onLogout={() => void logout()}
+    />
   );
 }
 export default App;
