@@ -5,8 +5,8 @@ import type { ReactNode } from "react";
 import { Icon, type IconName } from "./ui";
 
 export type NavItem = { name: string; icon: IconName; english: string };
-export function Shell({page, navItems, navigate, name, onProfileClick, toast, onToastClose, children}: {
-  page: string; navItems: NavItem[]; navigate: (name: string) => void; name: string;
+export function Shell({guest = false, page, navItems, navigate, name, onProfileClick, toast, onToastClose, children}: {
+  guest?: boolean; page: string; navItems: NavItem[]; navigate: (name: string) => void; name: string;
   onProfileClick: () => void; toast: string; onToastClose: () => void; children: ReactNode;
 }) {
   const [notifications,setNotifications]=useState(false);
@@ -21,15 +21,15 @@ export function Shell({page, navItems, navigate, name, onProfileClick, toast, on
       </a>
       <div className="topbar-right">
         <span className="ux-notification"><button onClick={()=>setNotifications(true)} aria-label="알림 · 준비 중"><Icon name="clock" size={19}/></button><small>알림 준비 중</small></span>
-        <button className="profile-button" aria-label="내 프로필 열기" onClick={onProfileClick}>
-          <span className="avatar green">{name.slice(-2)}</span><span><b>{name} 님</b><small>내 프로필</small></span>
+        <button className="profile-button" aria-label={guest ? "로그인·회원가입" : "내 프로필 열기"} onClick={onProfileClick}>
+          <span className="avatar green">{guest ? <Icon name="users" size={18}/> : name.slice(-2)}</span><span><b>{guest ? "로그인·회원가입" : `${name} 님`}</b><small>{guest ? "우리 가족과 시작하기" : "내 프로필"}</small></span>
         </button>
       </div>
     </header>
     <aside className="sidebar">
       <div className="nav-label">우리 가족의 공간</div>
       <nav aria-label="주 메뉴">{primary.map(key => {const item = navItems.find(n=>n.name===key); if (!item) return null; return <button key={key} onClick={()=>navigate(key)} className={`nav-item ${(page===key || (key==="돌봄 기록" && page==="AI 인수인계")) ? "active" : ""}`} aria-current={(page===key || (key==="돌봄 기록" && page==="AI 인수인계")) ? "page":undefined}><Icon name={item.icon}/><span>{labels[key]??key}</span></button>;})}</nav>
-      <div className="ux-sidebar-extra"><div className="nav-label">돌봄 도구</div>{navItems.filter(n=>!primary.includes(n.name) && n.name!=="AI 인수인계").map(item=><button key={item.name} onClick={()=>navigate(item.name)} className={`nav-item ${page===item.name ? "active":""}`} aria-current={page===item.name ? "page":undefined}><Icon name={item.icon}/><span>{item.name}</span></button>)}<button className="nav-item" onClick={onProfileClick}><Icon name="settings"/><span>내 프로필</span></button></div>
+      <div className="ux-sidebar-extra"><div className="nav-label">돌봄 도구</div>{navItems.filter(n=>!primary.includes(n.name) && n.name!=="AI 인수인계").map(item=><button key={item.name} onClick={()=>navigate(item.name)} className={`nav-item ${page===item.name ? "active":""}`} aria-current={page===item.name ? "page":undefined}><Icon name={item.icon}/><span>{item.name}</span></button>)}<button className="nav-item" onClick={onProfileClick}><Icon name="settings"/><span>{guest ? "로그인" : "내 프로필"}</span></button></div>
       <div className="sidebar-bottom"><Icon name="heart" size={25}/><p>작은 기록 하나가<br/>든든한 돌봄이 되도록.</p><small>FAMILY CARE CLOUD</small></div>
     </aside>
     <main id="main" className="main"><ViewportFit>{children}</ViewportFit></main>

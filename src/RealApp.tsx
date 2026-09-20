@@ -1,3 +1,4 @@
+import { GuestApp } from "./GuestApp";
 import { useCallback, useEffect, useState } from "react";
 import {
   authApi,
@@ -60,6 +61,7 @@ export type RealCtx = {
 };
 
 export function RealApp() {
+  const [authIntent,setAuthIntent]=useState<"create"|"join"|"login"|null>(null);
   const [session, setSession] = useState<Session | null>(loadSession);
   const [groupId, setGroupId] = useState<string | null>(loadGroupId);
   const [group, setGroup] = useState<GroupDetail | null>(null);
@@ -71,6 +73,7 @@ export function RealApp() {
   const [profileOpen, setProfileOpen] = useState(false);
 
   const logout = useCallback(() => {
+    setAuthIntent(null);
     saveSession(null);
     saveGroupId(null);
     setSession(null);
@@ -138,12 +141,13 @@ export function RealApp() {
     });
   }, [session, logout]);
 
-  if (!session) return <RealAuth onAuthenticated={setSession} />;
+  if (!session) return authIntent ? <RealAuth onBack={()=>setAuthIntent(null)} onAuthenticated={setSession} /> : <GuestApp onStart={setAuthIntent}/>;
   if (!groupId)
     return (
       <RealGroupSetup
         token={session.accessToken}
-        onGroupSelected={setGroupId}
+        initialAction={authIntent === "create" || authIntent === "join" ? authIntent : null}
+        onGroupSelected={id=>{setGroupId(id);setAuthIntent(null);}}
         onLogout={logout}
       />
     );

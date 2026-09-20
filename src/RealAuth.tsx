@@ -1,3 +1,4 @@
+import { PasswordInput } from "./PasswordInput";
 import { SettingsPreview } from "./UxDetails";
 import { useState, type FormEvent } from "react";
 import { authApi, ApiError, saveSession, type Session } from "./api";
@@ -17,8 +18,10 @@ function errorMessage(e: unknown, fallback: string) {
 
 export function RealAuth({
   onAuthenticated,
+  onBack,
 }: {
   onAuthenticated: (session: Session) => void;
+  onBack?: () => void;
 }) {
   const [mode, setMode] = useState<Mode>("login");
   const [emailId, setEmailId] = useState("");
@@ -78,6 +81,7 @@ export function RealAuth({
   return (
     <main className="production-gate">
       <div className="card" style={{ textAlign: "left" }}>
+        {onBack && <button className="text-button" onClick={onBack}>← 둘러보기로 돌아가기</button>}
         <div className="auth-intro">
           <Icon name="cloud" size={40} />
           <p>가족의 돌봄을 함께 이어가요.</p>
@@ -114,21 +118,8 @@ export function RealAuth({
                   value={customDomain} onChange={(e) => setCustomDomain(e.target.value)} />
               )}
             </div>
-            {mode !== "confirm" && (
-              <label className="field">
-                비밀번호
-                <input
-                  type="password"
-                  required
-                  minLength={12}
-                  maxLength={128}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                {mode === "register" && <small>12~128자로 입력해 주세요.</small>}
-              </label>
-            )}
-            {mode === "register" && <label className="field">비밀번호 확인<input type="password" autoComplete="new-password" value={passwordConfirm} onChange={e=>setPasswordConfirm(e.target.value)}/></label>}
+            {mode !== "confirm" && <><PasswordInput key={mode} label="비밀번호" required minLength={12} maxLength={128} autoComplete={mode === "register" ? "new-password" : "current-password"} value={password} onChange={e=>setPassword(e.target.value)}/>{mode === "register" && <p className="micro">12~128자로 입력해 주세요.</p>}</>}
+            {mode === "register" && <PasswordInput label="비밀번호 확인" required maxLength={128} autoComplete="new-password" value={passwordConfirm} onChange={e=>setPasswordConfirm(e.target.value)}/>}
             {mode === "register" && (
               <label className="field">
                 이름

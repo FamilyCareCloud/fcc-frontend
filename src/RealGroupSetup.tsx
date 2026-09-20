@@ -7,17 +7,19 @@ type Action = "create" | "join" | null;
 
 export function RealGroupSetup({
   token,
+  initialAction = null,
   onGroupSelected,
   onLogout,
 }: {
   token: string;
+  initialAction?: Action;
   onGroupSelected: (groupId: string) => void;
   onLogout: () => void;
 }) {
   const [joined,setJoined]=useState<string|null>(null);
   const [groups, setGroups] = useState<GroupSummary[] | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [action, setAction] = useState<Action>(null);
+  const [action, setAction] = useState<Action>(initialAction);
   const [name, setName] = useState("");
   const [elderName, setElderName] = useState("");
   const [inviteToken, setInviteToken] = useState("");
