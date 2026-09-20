@@ -51,9 +51,14 @@ export async function startRecording(): Promise<Recorder> {
           stopTracks();
           reject(new Error("녹음 중 오류가 발생했습니다."));
         };
-        recorder.onstop = () => {
+        recorder.onstop = async () => {
           stopTracks();
-          resolve({ blob: new Blob(chunks, { type: mimeType ?? recorder.mimeType }), mimeType: mimeType ?? recorder.mimeType });
+          try {
+            const recorded = new Blob(chunks, { type: mimeType ?? recorder.mimeType });
+            if (!recorded.size) throw new Error("녹음된 소리가 없어요. 다시 녹음해 주세요.");
+            const blob = await toPcmWav(recorded);
+            resolve({ blob, mimeType: "audio/wav" });
+          } catch { reject(new Error("녹음 파일을 변환하지 못했습니다. 짧게 다시 녹음해 주세요.")); }
         };
         recorder.stop();
       }),
@@ -63,4 +68,29 @@ export async function startRecording(): Promise<Recorder> {
       stopTracks();
     },
   };
+}
+
+// The STT decoder accepts PCM WAV reliably; browser WebM/Opus may fail server decoding.
+export async function toPcmWav(blob: Blob): Promise<Blob> {
+  const decoder = new AudioContext();
+  let decoded: AudioBuffer;
+  try { decoded = await decoder.decodeAudioData(await blob.arrayBuffer()); }
+  finally { await decoder.close(); }
+  const length = Math.ceil(decoded.duration * 16000);
+  if (!length || 44 + length * 2 > AUDIO_MAX_BYTES) throw new Error("녹음이 너무 깁니다.");
+  const offline = new OfflineAudioContext(1, length, 16000);
+  const source = offline.createBufferSource();
+  source.buffer = decoded;
+  source.connect(offline.destination);
+  source.start();
+  const pcm = (await offline.startRendering()).getChannelData(0);
+  const buffer = new ArrayBuffer(44 + pcm.length * 2);
+  const view = new DataView(buffer);
+  const tag = (offset: number, value: string) => { for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i)); };
+  tag(0, "RIFF"); view.setUint32(4, buffer.byteLength - 8, true); tag(8, "WAVE"); tag(12, "fmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, 16000, true); view.setUint32(28, 32000, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  tag(36, "data"); view.setUint32(40, pcm.length * 2, true);
+  for (let i = 0; i < pcm.length; i++) { const v = Math.max(-1, Math.min(1, pcm[i])); view.setInt16(44 + i * 2, Math.round(v * (v < 0 ? 32768 : 32767)), true); }
+  return new Blob([buffer], { type: "audio/wav" });
 }

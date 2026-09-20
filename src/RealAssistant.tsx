@@ -11,7 +11,7 @@ function textErr(e: unknown) {
 function voiceErr(e: unknown) {
   if (e instanceof ApiError) {
     if (e.status === 503) return "음성 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.";
-    if (e.status === 502) return "음성 인식 서버에 연결하지 못했습니다.";
+    if (e.status === 502) return e.message || "음성 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
     if (e.status === 422) return "음성을 인식하지 못했습니다. 다시 말씀해 주세요.";
     if (e.status === 413) return "녹음이 너무 깁니다. 3MB 미만으로 짧게 다시 녹음해 주세요.";
     return e.message || "음성 질문을 처리하지 못했습니다.";
