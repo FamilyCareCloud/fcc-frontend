@@ -26,6 +26,22 @@ export function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+// getUserMedia rejects with a DOMException whose message is raw English ("The object can not be found here."
+// when no input device exists). Map it to something a caregiver can act on.
+export function micErrorMessage(e: unknown): string {
+  const name = e instanceof DOMException ? e.name : "";
+  if (name === "NotFoundError" || name === "OverconstrainedError") {
+    return "사용할 수 있는 마이크를 찾지 못했어요. 마이크가 연결돼 있는지 확인하거나, 텍스트로 질문해 주세요.";
+  }
+  if (name === "NotAllowedError" || name === "SecurityError") {
+    return "마이크 사용이 허용되지 않았어요. 주소창의 사이트 설정에서 마이크를 허용한 뒤 다시 시도해 주세요.";
+  }
+  if (name === "NotReadableError" || name === "AbortError") {
+    return "마이크를 사용할 수 없어요. 다른 프로그램이 마이크를 쓰고 있는지 확인해 주세요.";
+  }
+  return "마이크를 시작하지 못했어요. 텍스트로 질문해 주세요.";
+}
+
 export type Recorder = {
   stop: () => Promise<{ blob: Blob; mimeType: string }>;
   cancel: () => void;
@@ -35,7 +51,12 @@ export async function startRecording(): Promise<Recorder> {
   if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices) {
     throw new Error("이 브라우저에서는 음성 녹음을 지원하지 않습니다.");
   }
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  let stream: MediaStream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    throw new Error(micErrorMessage(e));
+  }
   const mimeType = pickMimeType();
   const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
   const chunks: BlobPart[] = [];
