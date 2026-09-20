@@ -1,3 +1,4 @@
+import { ViewportFit } from "./ViewportFit";
 import { useEffect, useRef, type ReactNode } from "react";
 export type IconName =
   | "home"
@@ -130,13 +131,13 @@ export function Modal({
   }, []);
   return (
     <dialog ref={ref} onCancel={onClose} aria-labelledby="modal-title">
-      <div className="modal-head">
+      <ViewportFit><div className="modal-head">
         <h2 id="modal-title">{title}</h2>
         <button className="icon-button" aria-label="닫기" onClick={onClose}>
           <Icon name="close" />
         </button>
       </div>
-      {children}
+      {children}</ViewportFit>
     </dialog>
   );
 }
