@@ -174,7 +174,7 @@ export function RealSchedules({ ctx }: { ctx: RealCtx }) {
       </div>
       <div className="cal-legend"><span><i className="medical"/>진료·검사</span><span><i className="medication"/>복약</span><span><i className="daily"/>기타 일정</span></div></div>
       <section className="card cal-panel">
-        <div className="cal-summary"><strong>{view === "day" ? "선택한 날짜" : view === "week" ? "선택한 주" : "선택한 달"}의 일정 <b>{visible.length}건</b></strong><span>{view === "week" ? "시간표를 좌우·위아래로 스크롤해 보세요." : "일정을 누르면 상세 내용을 확인할 수 있어요."}</span></div>
+        <div className="cal-summary"><strong>{view === "day" ? "선택한 날짜" : view === "week" ? "선택한 주" : "선택한 달"}의 일정 <b>{visible.length}건</b></strong><span>{view === "week" ? "이전·다음 시간 버튼으로 시간대를 바꿔 보세요." : "일정을 누르면 상세 내용을 확인할 수 있어요."}</span></div>
         <ScheduleCalendar date={selectedDate} view={view} schedules={filtered} onSelectDate={d=>{setSelectedDate(d);setView("day");}} onSelectEvent={setDetailId}/>
       </section>
       <h2 className="cal-list-title">{view === "day" ? "하루" : "선택한 기간"} 일정 목록</h2>
