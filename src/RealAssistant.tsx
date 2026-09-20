@@ -10,10 +10,10 @@ function textErr(e: unknown) {
 }
 function voiceErr(e: unknown) {
   if (e instanceof ApiError) {
-    if (e.status === 503) return "음성 인식 서버가 아직 연결되어 있지 않습니다.";
+    if (e.status === 503) return "음성 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.";
     if (e.status === 502) return "음성 인식 서버에 연결하지 못했습니다.";
     if (e.status === 422) return "음성을 인식하지 못했습니다. 다시 말씀해 주세요.";
-    if (e.status === 413) return "녹음이 너무 깁니다. 4MB 이하로 다시 녹음해 주세요.";
+    if (e.status === 413) return "녹음이 너무 깁니다. 3MB 미만으로 짧게 다시 녹음해 주세요.";
     return e.message || "음성 질문을 처리하지 못했습니다.";
   }
   return e instanceof Error ? e.message : "음성 질문을 처리하지 못했습니다.";
@@ -55,8 +55,9 @@ export function RealAssistant({ ctx }: { ctx: RealCtx }) {
       try {
         const { blob, mimeType } = await recorder.stop();
         if (blob.size > AUDIO_MAX_BYTES) {
-          throw new Error("녹음이 너무 깁니다. 4MB 이하로 다시 녹음해 주세요.");
+          throw new Error("녹음이 너무 깁니다. 3MB 미만으로 짧게 다시 녹음해 주세요.");
         }
+        if (!blob.size) throw new Error("녹음된 소리가 없어요. 다시 녹음해 주세요.");
         const audioBase64 = await blobToBase64(blob);
         const result = await assistantApi.askVoice(ctx.token, ctx.groupId, audioBase64, mimeType);
         setHistory((all) => [{ ...result, question: result.transcript }, ...all]);
@@ -85,6 +86,7 @@ export function RealAssistant({ ctx }: { ctx: RealCtx }) {
         </div>
       </div>
       <section className="card">
+        <p className="inline-note">음성으로 질문을 시작한 뒤, 말을 마치면 ‘녹음 중지·질문 보내기’를 눌러 주세요. 인식한 문장과 답변이 아래에 표시돼요.</p>
         <div className="form-row">
           <label className="field" style={{ flex: 1 }}>
             질문
@@ -110,9 +112,10 @@ export function RealAssistant({ ctx }: { ctx: RealCtx }) {
             onClick={() => void toggleRecording()}
           >
             <Icon name="mic" size={18} />
-            {recording ? "녹음 중지" : "음성으로 질문"}
+            {recording ? "녹음 중지·질문 보내기" : "음성으로 질문"}
           </button>
         </div>
+        {recording && <p role="status" className="inline-note">녹음 중이에요. 질문을 말씀해 주세요.</p>}
         {error && (
           <p className="error" role="alert">
             {error}
@@ -130,7 +133,7 @@ export function RealAssistant({ ctx }: { ctx: RealCtx }) {
         {history.map((h, i) => (
           <div className="history-item" key={i} style={{ flexDirection: "column", alignItems: "flex-start" }}>
             <span>
-              <Badge>{h.transcript !== undefined ? "음성" : "텍스트"}</Badge> {h.question}
+              <Badge>{h.transcript !== undefined ? "음성 인식 결과" : "텍스트"}</Badge> {h.question}
             </span>
             <p className="detail-content">{h.answer}</p>
             {h.requiresApproval && <p className="micro">이 요청은 담당 보호자 승인이 필요합니다.</p>}

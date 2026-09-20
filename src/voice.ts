@@ -1,5 +1,6 @@
 // Mic recording helpers for the assistant voice question (POST /groups/{g}/assistant/voice).
-export const AUDIO_MAX_BYTES = 4 * 1024 * 1024;
+// Lambda caps the complete JSON body at 4 MiB; base64 expands raw audio by 4/3.
+export const AUDIO_MAX_BYTES = 3 * 1024 * 1024 - 1024;
 
 const CANDIDATE_MIME_TYPES = [
   "audio/webm;codecs=opus",
