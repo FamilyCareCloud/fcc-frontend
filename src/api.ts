@@ -6,10 +6,12 @@ const BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 export class ApiError extends Error {
   status: number;
   code?: string;
-  constructor(status: number, message: string, code?: string) {
+  details?: VerificationInfo;
+  constructor(status: number, message: string, code?: string, details?: VerificationInfo) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -41,8 +43,8 @@ async function request<T>(
   const raw = await res.text();
   const data: unknown = raw ? JSON.parse(raw) : {};
   if (!res.ok) {
-    const body = data as { error?: string; code?: string };
-    throw new ApiError(res.status, body?.error ?? "요청을 처리하지 못했습니다.", body?.code);
+    const body = data as { error?: string; code?: string; details?: VerificationInfo };
+    throw new ApiError(res.status, body?.error ?? "요청을 처리하지 못했습니다.", body?.code, body?.details);
   }
   return data as T;
 }
@@ -55,12 +57,24 @@ export type LoginResult = {
   expiresAt: string;
   user: AuthUser;
 };
-export type RegisterResult = { userId: string; confirmationRequired?: boolean } & Partial<AuthUser>;
+export type VerificationInfo = {
+  status?: "UNCONFIRMED" | "CONFIRMED";
+  confirmationRequired?: boolean;
+  nextAction?: string;
+  email?: string;
+  deliveryStatus?: string;
+  codeExpiresAt?: string | null;
+  retryAfterSeconds?: number;
+  resendAvailableAt?: string;
+};
+export type RegisterResult = { userId?: string } & VerificationInfo & Partial<AuthUser>;
 export const authApi = {
   register: (input: { email: string; password: string; name: string }) =>
     request<RegisterResult>("/auth/register", { method: "POST", body: input }),
   confirm: (input: { email: string; code: string }) =>
     request<{ confirmed: true }>("/auth/confirm", { method: "POST", body: input }),
+  resend: (email: string) =>
+    request<VerificationInfo>("/auth/resend-confirmation", { method: "POST", body: { email } }),
   login: (input: { email: string; password: string }) =>
     request<LoginResult>("/auth/login", { method: "POST", body: input }),
   logout: (token: string) => request<{ loggedOut: true }>("/auth/logout", { method: "POST", token, body: {} }),
